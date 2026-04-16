@@ -3,47 +3,49 @@ package mysql
 import (
 	"context"
 	"database/sql"
-	"errors"
 
 	"github.com/assidik12/go-restfull-api/internal/domain"
 )
 
-type TransactionRepository interface {
-	Save(ctx context.Context, tx *sql.Tx, transaction domain.Transaction) (domain.Transaction, error)
-	FindById(ctx context.Context, id int) (domain.Transaction, error)
-	GetAll(ctx context.Context, idUser int) ([]domain.Transaction, error)
-	Delete(ctx context.Context, id int) error
-}
-
+// transactionRepository is the MySQL implementation of domain.TransactionRepository.
 type transactionRepository struct {
 	db *sql.DB
 }
 
-func NewTransactionRepository(db *sql.DB) TransactionRepository {
+// NewTransactionRepository returns a domain.TransactionRepository backed by MySQL.
+func NewTransactionRepository(db *sql.DB) domain.TransactionRepository {
 	return &transactionRepository{db: db}
 }
 
+// Save implements domain.TransactionRepository.
+// It uses the provided *sql.Tx so the service layer controls commit/rollback.
 func (t *transactionRepository) Save(ctx context.Context, tx *sql.Tx, transaction domain.Transaction) (domain.Transaction, error) {
-	// 1. Simpan ke tabel utama `transactions`
+	// 1. Insert into master table `transactions`
 	qMaster := "INSERT INTO transactions (user_id, transaction_detail_id, total_price) VALUES (?, ?, ?)"
-	result, err := tx.ExecContext(ctx, qMaster, transaction.User_id, transaction.Transaction_detail_id, transaction.Total_Price)
+	result, err := tx.ExecContext(ctx, qMaster,
+		transaction.UserID,
+		transaction.TransactionDetailID,
+		transaction.TotalPrice,
+	)
 	if err != nil {
 		return domain.Transaction{}, err
 	}
 
-	// Dapatkan ID dari transaksi yang baru saja dibuat
 	id, err := result.LastInsertId()
 	if err != nil {
 		return domain.Transaction{}, err
 	}
 	transaction.ID = int(id)
 
-	// 2. Simpan setiap item produk ke tabel `transaction_details`
+	// 2. Insert each line-item into `transaction_details`
 	qDetail := "INSERT INTO transaction_details (transaction_detail_id, quantity, product_id) VALUES (?, ?, ?)"
-	for _, productDetail := range transaction.Products {
-		_, err := tx.ExecContext(ctx, qDetail, transaction.Transaction_detail_id, productDetail.Quantyty, productDetail.Product_id)
+	for _, detail := range transaction.Products {
+		_, err := tx.ExecContext(ctx, qDetail,
+			transaction.TransactionDetailID,
+			detail.Quantity,
+			detail.ProductID,
+		)
 		if err != nil {
-			// Jika gagal menyimpan detail, seluruh transaksi akan di-rollback oleh service layer
 			return domain.Transaction{}, err
 		}
 	}
@@ -51,28 +53,28 @@ func (t *transactionRepository) Save(ctx context.Context, tx *sql.Tx, transactio
 	return transaction, nil
 }
 
-// FindById mencari satu transaksi beserta detailnya.
+// FindById implements domain.TransactionRepository.
 func (t *transactionRepository) FindById(ctx context.Context, id int) (domain.Transaction, error) {
 	var transaction domain.Transaction
 
-	// 1. Ambil data dari tabel master `transactions`
+	// 1. Fetch master record
 	qMaster := "SELECT id, user_id, transaction_detail_id, total_price FROM transactions WHERE id = ?"
 	err := t.db.QueryRowContext(ctx, qMaster, id).Scan(
 		&transaction.ID,
-		&transaction.User_id,
-		&transaction.Transaction_detail_id,
-		&transaction.Total_Price,
+		&transaction.UserID,
+		&transaction.TransactionDetailID,
+		&transaction.TotalPrice,
 	)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return domain.Transaction{}, errors.New("transaction not found")
+			return domain.Transaction{}, domain.ErrNotFound
 		}
 		return domain.Transaction{}, err
 	}
 
-	// 2. Ambil semua data detail yang cocok dari tabel `transaction_details`
-	qDetail := "SELECT transaction_detail_id, quantity, product_id FROM transaction_details WHERE transaction_detail_id = ?"
-	rows, err := t.db.QueryContext(ctx, qDetail, transaction.Transaction_detail_id)
+	// 2. Fetch detail rows
+	qDetail := "SELECT quantity, product_id FROM transaction_details WHERE transaction_detail_id = ?"
+	rows, err := t.db.QueryContext(ctx, qDetail, transaction.TransactionDetailID)
 	if err != nil {
 		return domain.Transaction{}, err
 	}
@@ -81,22 +83,24 @@ func (t *transactionRepository) FindById(ctx context.Context, id int) (domain.Tr
 	var details []domain.TransactionDetail
 	for rows.Next() {
 		var detail domain.TransactionDetail
-		err := rows.Scan(&detail.Quantyty, &detail.Product_id)
-		if err != nil {
+		if err := rows.Scan(&detail.Quantity, &detail.ProductID); err != nil {
 			return domain.Transaction{}, err
 		}
 		details = append(details, detail)
 	}
-	transaction.Products = details
+	if err := rows.Err(); err != nil {
+		return domain.Transaction{}, err
+	}
 
+	transaction.Products = details
 	return transaction, nil
 }
 
-// GetAll mengambil semua transaksi milik seorang user, beserta detailnya.
+// GetAll implements domain.TransactionRepository.
 func (t *transactionRepository) GetAll(ctx context.Context, idUser int) ([]domain.Transaction, error) {
 	var transactions []domain.Transaction
 
-	// 1. Ambil semua transaksi master milik user
+	// 1. Fetch all master records for this user
 	qMaster := "SELECT id, user_id, transaction_detail_id, total_price FROM transactions WHERE user_id = ?"
 	rowsMaster, err := t.db.QueryContext(ctx, qMaster, idUser)
 	if err != nil {
@@ -104,22 +108,21 @@ func (t *transactionRepository) GetAll(ctx context.Context, idUser int) ([]domai
 	}
 	defer rowsMaster.Close()
 
-	// Loop untuk setiap transaksi master
 	for rowsMaster.Next() {
 		var transaction domain.Transaction
 		err := rowsMaster.Scan(
 			&transaction.ID,
-			&transaction.User_id,
-			&transaction.Transaction_detail_id,
-			&transaction.Total_Price,
+			&transaction.UserID,
+			&transaction.TransactionDetailID,
+			&transaction.TotalPrice,
 		)
 		if err != nil {
 			return nil, err
 		}
 
-		// 2. Untuk setiap transaksi, ambil detailnya
-		qDetail := "SELECT transaction_detail_id, quantity, product_id FROM transaction_details WHERE transaction_detail_id = ?"
-		rowsDetail, err := t.db.QueryContext(ctx, qDetail, transaction.Transaction_detail_id)
+		// 2. Fetch detail rows for each master record
+		qDetail := "SELECT quantity, product_id FROM transaction_details WHERE transaction_detail_id = ?"
+		rowsDetail, err := t.db.QueryContext(ctx, qDetail, transaction.TransactionDetailID)
 		if err != nil {
 			return nil, err
 		}
@@ -127,27 +130,32 @@ func (t *transactionRepository) GetAll(ctx context.Context, idUser int) ([]domai
 		var details []domain.TransactionDetail
 		for rowsDetail.Next() {
 			var detail domain.TransactionDetail
-			err := rowsDetail.Scan(&detail.Quantyty, &detail.Product_id)
-			if err != nil {
-				// Penting untuk menutup rowsDetail di sini sebelum return
+			if err := rowsDetail.Scan(&detail.Quantity, &detail.ProductID); err != nil {
 				rowsDetail.Close()
 				return nil, err
 			}
 			details = append(details, detail)
 		}
-		rowsDetail.Close() // Tutup rowsDetail setelah selesai loop
+		if err := rowsDetail.Err(); err != nil {
+			rowsDetail.Close()
+			return nil, err
+		}
+		rowsDetail.Close()
 
 		transaction.Products = details
 		transactions = append(transactions, transaction)
 	}
 
+	if err := rowsMaster.Err(); err != nil {
+		return nil, err
+	}
+
 	return transactions, nil
 }
 
-// Delete menghapus transaksi.
-// Diasumsikan database memiliki ON DELETE CASCADE pada foreign key,
-// sehingga menghapus dari `transactions` juga akan menghapus dari `transaction_details`.
-// Jika tidak, Anda harus menghapus dari `transaction_details` terlebih dahulu.
+// Delete implements domain.TransactionRepository.
+// It assumes ON DELETE CASCADE is set on the foreign key so that deleting from
+// `transactions` automatically removes the associated `transaction_details` rows.
 func (t *transactionRepository) Delete(ctx context.Context, id int) error {
 	q := "DELETE FROM transactions WHERE id = ?"
 	result, err := t.db.ExecContext(ctx, q, id)
@@ -161,7 +169,7 @@ func (t *transactionRepository) Delete(ctx context.Context, id int) error {
 	}
 
 	if rowsAffected == 0 {
-		return errors.New("no transaction was deleted, maybe not found")
+		return domain.ErrNotFound
 	}
 
 	return nil

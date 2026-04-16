@@ -3,7 +3,6 @@ package service
 import (
 	"context"
 	"database/sql"
-	"errors"
 	"fmt"
 	"time"
 
@@ -11,12 +10,11 @@ import (
 
 	"github.com/assidik12/go-restfull-api/internal/delivery/http/dto"
 	"github.com/assidik12/go-restfull-api/internal/domain"
-
-	"github.com/assidik12/go-restfull-api/internal/repository/mysql"
 	"github.com/assidik12/go-restfull-api/internal/repository/redis"
 	"github.com/go-playground/validator/v10"
 )
 
+// ProductService defines the business-logic contract for products.
 type ProductService interface {
 	GetAllProducts(ctx context.Context, page int, pageSize int) ([]domain.Product, error)
 	GetProductById(ctx context.Context, id int) (domain.Product, error)
@@ -26,36 +24,37 @@ type ProductService interface {
 }
 
 type productService struct {
-	ProductRepository mysql.ProductRepository
-	DB                *sql.DB
-	Cache             *redis.Wrapper
-	Validator         *validator.Validate
-	sf                singleflight.Group
+	repo      domain.ProductRepository // ← depends on domain interface, not mysql package
+	DB        *sql.DB
+	cache     *redis.Wrapper
+	validator *validator.Validate
+	sf        singleflight.Group
 }
 
 const (
-	PRODUCT_CACHE_PREFIX_DETAIL = "product:detail:"
-	PRODUCT_CACHE_PREFIX_LIST   = "product:list:page:"
-	defaultCacheDuration        = 10 * time.Minute
+	productCachePrefixDetail = "product:detail:"
+	productCachePrefixList   = "product:list:page:"
+	defaultCacheDuration     = 10 * time.Minute
 )
 
-func NewProductService(repo mysql.ProductRepository, DB *sql.DB, cache *redis.Wrapper, validate *validator.Validate) ProductService {
+// NewProductService constructs a ProductService.
+// The repo parameter is domain.ProductRepository so the constructor is
+// decoupled from any specific DB implementation.
+func NewProductService(repo domain.ProductRepository, DB *sql.DB, cache *redis.Wrapper, validate *validator.Validate) ProductService {
 	return &productService{
-		ProductRepository: repo,
-		DB:                DB,
-		Cache:             cache,
-		Validator:         validate,
+		repo:      repo,
+		DB:        DB,
+		cache:     cache,
+		validator: validate,
 	}
 }
 
 // CreateProduct implements ProductService.
 func (p *productService) CreateProduct(ctx context.Context, req dto.ProductRequest) (domain.Product, error) {
-	// validate input
-	err := p.Validator.Struct(req)
-	if err != nil {
-		return domain.Product{}, err
+	if err := p.validator.Struct(req); err != nil {
+		return domain.Product{}, fmt.Errorf("%w: %s", domain.ErrInvalidInput, err.Error())
 	}
-	// create product
+
 	productEntity := domain.Product{
 		Name:        req.Name,
 		Price:       req.Price,
@@ -64,13 +63,13 @@ func (p *productService) CreateProduct(ctx context.Context, req dto.ProductReque
 		CategoryId:  req.CategoryId,
 	}
 
-	product, err := p.ProductRepository.Save(ctx, productEntity)
+	product, err := p.repo.Save(ctx, productEntity)
 	if err != nil {
 		return domain.Product{}, err
 	}
 
-	// Invalidate cache list
-	p.Cache.InvalidateByPrefix(ctx, PRODUCT_CACHE_PREFIX_LIST)
+	// Invalidate list cache so the next GetAll fetches fresh data
+	p.cache.InvalidateByPrefix(ctx, productCachePrefixList)
 
 	return product, nil
 }
@@ -78,26 +77,22 @@ func (p *productService) CreateProduct(ctx context.Context, req dto.ProductReque
 // GetAllProducts implements ProductService.
 func (p *productService) GetAllProducts(ctx context.Context, page int, pageSize int) ([]domain.Product, error) {
 	var products []domain.Product
-	// Gunakan konstanta yang sudah kita buat
-	redisKey := fmt.Sprintf("%s%d", PRODUCT_CACHE_PREFIX_LIST, page)
+	redisKey := fmt.Sprintf("%s%d", productCachePrefixList, page)
 
-	// 1. Coba ambil dari cache
-	if err := p.Cache.Get(ctx, redisKey, &products); err == nil {
-		return products, nil // CACHE HIT
+	// 1. Cache hit
+	if err := p.cache.Get(ctx, redisKey, &products); err == nil {
+		return products, nil
 	}
 
-	// 2. CACHE MISS, gunakan singleflight untuk mencegah stampede di halaman list
+	// 2. Cache miss — use singleflight to prevent thundering-herd on the list page
 	res, err, _ := p.sf.Do(redisKey, func() (any, error) {
-		// Panggil repository dengan parameter paginasi
-		// Kamu mungkin perlu mengubah method GetAll di repository juga
-		dbProducts, dbErr := p.ProductRepository.GetAll(ctx, page, pageSize)
+		dbProducts, dbErr := p.repo.GetAll(ctx, page, pageSize)
 		if dbErr != nil {
 			return nil, dbErr
 		}
 
-		// Hanya cache jika ada hasilnya
 		if len(dbProducts) > 0 {
-			p.Cache.Set(ctx, redisKey, dbProducts, defaultCacheDuration)
+			p.cache.Set(ctx, redisKey, dbProducts, defaultCacheDuration)
 		}
 
 		return dbProducts, nil
@@ -112,27 +107,28 @@ func (p *productService) GetAllProducts(ctx context.Context, page int, pageSize 
 
 // GetProductById implements ProductService.
 func (p *productService) GetProductById(ctx context.Context, id int) (domain.Product, error) {
+	if id <= 0 {
+		return domain.Product{}, fmt.Errorf("%w: product id must be positive", domain.ErrInvalidInput)
+	}
 
 	var product domain.Product
-	redisKey := fmt.Sprintf("%s%d", PRODUCT_CACHE_PREFIX_DETAIL, id)
+	redisKey := fmt.Sprintf("%s%d", productCachePrefixDetail, id)
 
-	if id <= 0 {
-		return domain.Product{}, errors.New("invalid product id")
-	}
-
-	if err := p.Cache.Get(ctx, redisKey, &product); err == nil {
+	// 1. Cache hit
+	if err := p.cache.Get(ctx, redisKey, &product); err == nil {
 		return product, nil
 	}
 
+	// 2. Cache miss
 	res, err, _ := p.sf.Do(redisKey, func() (any, error) {
-
-		product, err := p.ProductRepository.FindById(ctx, id)
-		if err != nil {
-			return nil, err
+		prod, findErr := p.repo.FindById(ctx, id)
+		if findErr != nil {
+			// Repository already maps sql.ErrNoRows → domain.ErrNotFound
+			return nil, findErr
 		}
 
-		p.Cache.Set(ctx, redisKey, product, defaultCacheDuration)
-		return product, nil
+		p.cache.Set(ctx, redisKey, prod, defaultCacheDuration)
+		return prod, nil
 	})
 
 	if err != nil {
@@ -144,13 +140,10 @@ func (p *productService) GetProductById(ctx context.Context, id int) (domain.Pro
 
 // UpdateProduct implements ProductService.
 func (p *productService) UpdateProduct(ctx context.Context, id int, req dto.ProductRequest) (domain.Product, error) {
-	// validate input
-	err := p.Validator.Struct(req)
-	if err != nil {
-		return domain.Product{}, err
+	if err := p.validator.Struct(req); err != nil {
+		return domain.Product{}, fmt.Errorf("%w: %s", domain.ErrInvalidInput, err.Error())
 	}
 
-	// update product
 	productEntity := domain.Product{
 		ID:          id,
 		Name:        req.Name,
@@ -159,27 +152,28 @@ func (p *productService) UpdateProduct(ctx context.Context, id int, req dto.Prod
 		Img:         req.Img,
 		CategoryId:  req.CategoryId,
 	}
-	product, err := p.ProductRepository.Update(ctx, productEntity)
+
+	product, err := p.repo.Update(ctx, productEntity)
 	if err != nil {
 		return domain.Product{}, err
 	}
 
-	p.Cache.Delete(ctx, fmt.Sprintf("%s%d", PRODUCT_CACHE_PREFIX_DETAIL, id))
-
-	p.Cache.InvalidateByPrefix(ctx, PRODUCT_CACHE_PREFIX_LIST)
+	p.cache.Delete(ctx, fmt.Sprintf("%s%d", productCachePrefixDetail, id))
+	p.cache.InvalidateByPrefix(ctx, productCachePrefixList)
 
 	return product, nil
 }
 
 // DeleteProduct implements ProductService.
 func (p *productService) DeleteProduct(ctx context.Context, id int) error {
-	if err := p.ProductRepository.Delete(ctx, id); err != nil {
+	if err := p.repo.Delete(ctx, id); err != nil {
 		return err
 	}
 
-	p.Cache.Delete(ctx, fmt.Sprintf("%s%d", PRODUCT_CACHE_PREFIX_DETAIL, id))
-
-	p.Cache.InvalidateByPrefix(ctx, PRODUCT_CACHE_PREFIX_LIST)
+	p.cache.Delete(ctx, fmt.Sprintf("%s%d", productCachePrefixDetail, id))
+	p.cache.InvalidateByPrefix(ctx, productCachePrefixList)
 
 	return nil
 }
+
+

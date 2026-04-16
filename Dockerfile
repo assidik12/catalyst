@@ -35,7 +35,7 @@ RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o /app/main ./cmd/a
 FROM alpine:latest
 
 # Menginstall netcat untuk healthcheck di entrypoint
-RUN apk add --no-cache netcat-openbsd
+RUN apk add --no-cache netcat-openbsd dos2unix
 
 WORKDIR /app
 
@@ -52,11 +52,10 @@ COPY ./db/migrations ./db/migrations
 
 COPY ./docs ./docs
 
-# Copy script entrypoint
+# Copy script entrypoint and normalise line-endings (Windows CRLF → LF)
+# so the shebang is parsed correctly by the Alpine /bin/sh interpreter.
 COPY ./entrypoint.sh .
-
-# Memberikan izin eksekusi pada script entrypoint
-RUN chmod +x ./entrypoint.sh
+RUN dos2unix ./entrypoint.sh && chmod +x ./entrypoint.sh
 
 EXPOSE 3000
 

@@ -51,3 +51,8 @@ func InternalServerError(w http.ResponseWriter, errorMessage string) {
 func Unauthorized(w http.ResponseWriter, errorMessage string) {
 	writeResponse(w, http.StatusUnauthorized, "UNAUTHORIZED", map[string]string{"error": errorMessage})
 }
+
+// Conflict sends a 409 Conflict response (e.g. duplicate resource).
+func Conflict(w http.ResponseWriter, errorMessage string) {
+	writeResponse(w, http.StatusConflict, "CONFLICT", map[string]string{"error": errorMessage})
+}

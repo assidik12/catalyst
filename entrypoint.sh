@@ -1,4 +1,4 @@
-#!/bin/sh
+﻿#!/bin/sh
 # Script ini akan menghentikan eksekusi jika terjadi error
 set -e
 

@@ -23,7 +23,6 @@ import (
 
 // Injectors from injector.go:
 
-// Hapus parameter cache.Wrapper dari sini, biarkan Wire yang buat
 func InitializedServer(cfg config.Config) (*http.Server, func(), error) {
 	db := infrastructure.DatabaseConnection(cfg)
 	userRepository := mysql.NewUserRepository(db)
@@ -39,8 +38,10 @@ func InitializedServer(cfg config.Config) (*http.Server, func(), error) {
 	transactionRepository := mysql.NewTransactionRepository(db)
 	writer := infrastructure.NewKafkaWriter(cfg)
 	kafkaProducer := event.NewKafkaProducer(writer)
-	trancationService := service.NewTransactionService(transactionRepository, db, validate, userRepository, kafkaProducer)
-	transactionHandler := handler.NewTransactionHandler(trancationService)
+	// NewTransactionService now accepts domain.XxxRepository — the mysql constructors
+	// return those interfaces, so no cast is needed.
+	transactionService := service.NewTransactionService(transactionRepository, db, validate, userRepository, kafkaProducer)
+	transactionHandler := handler.NewTransactionHandler(transactionService)
 	router := route.NewRouter(userHandler, productHandler, transactionHandler)
 	authMiddleware := middleware.NewAuthMiddleware(router)
 	server := config.NewServer(authMiddleware)
@@ -56,7 +57,7 @@ var (
 
 var validatorSet = wire.NewSet(validator.New, wire.Value([]validator.Option{}))
 
-// Setup Kafka (Pastikan file infrastructure/kafka.go dan event/kafka_producer.go sudah dibuat)
+// Setup Kafka
 var eventSet = wire.NewSet(infrastructure.NewKafkaWriter, event.NewKafkaProducer, wire.Bind(new(event.Producer), new(*event.KafkaProducer)))
 
 var userSet = wire.NewSet(mysql.NewUserRepository, service.NewUserService, handler.NewUserHandler)

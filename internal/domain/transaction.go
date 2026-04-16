@@ -1,14 +1,16 @@
 package domain
 
+// Transaction represents the master record of a single order.
 type Transaction struct {
-	ID                    int
-	Transaction_detail_id string
-	User_id               int
-	Total_Price           int
-	Products              []TransactionDetail
+	ID                  int
+	TransactionDetailID string
+	UserID              int
+	TotalPrice          int
+	Products            []TransactionDetail
 }
 
+// TransactionDetail represents one line-item inside a transaction.
 type TransactionDetail struct {
-	Quantyty   int
-	Product_id int
+	Quantity  int
+	ProductID int
 }
