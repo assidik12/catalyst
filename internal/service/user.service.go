@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/assidik12/go-restfull-api/config"
 	"github.com/assidik12/go-restfull-api/internal/delivery/http/dto"
 	"github.com/assidik12/go-restfull-api/internal/domain"
 	"github.com/assidik12/go-restfull-api/internal/pkg/hash"
@@ -23,17 +22,24 @@ type UserService interface {
 }
 
 type userService struct {
-	repo     domain.UserRepository // ← domain interface, not mysql package
-	DB       *sql.DB
-	validate *validator.Validate
+	repo      domain.UserRepository
+	DB        *sql.DB
+	validate  *validator.Validate
+	jwtSecret string // Injected secret
 }
 
-// NewUserService constructs a UserService.
-func NewUserService(repo domain.UserRepository, DB *sql.DB, validate *validator.Validate) UserService {
+// NewUserService constructs a UserService with its dependencies.
+func NewUserService(
+	repo domain.UserRepository, 
+	DB *sql.DB, 
+	validate *validator.Validate, 
+	jwtSecret string, // Injected parameter
+) UserService {
 	return &userService{
-		repo:     repo,
-		DB:       DB,
-		validate: validate,
+		repo:      repo,
+		DB:        DB,
+		validate:  validate,
+		jwtSecret: jwtSecret,
 	}
 }
 
@@ -69,20 +75,14 @@ func (s *userService) Register(ctx context.Context, req dto.RegisterRequest) (dt
 	}, nil
 }
 
-// Login implements UserService.
-// NOTE: config.GetConfig() is still called here intentionally — this is a
-// Phase 2 item (inject jwtSecret via constructor). It is NOT changed in
-// this Phase 1 refactor so as not to alter behaviour unintentionally.
+// Login implements UserService using the injected jwtSecret.
 func (s *userService) Login(ctx context.Context, req dto.LoginRequest) (dto.LoginResponse, error) {
-	cfg := config.GetConfig()
-
 	if err := s.validate.Struct(req); err != nil {
 		return dto.LoginResponse{}, fmt.Errorf("%w: %s", domain.ErrInvalidInput, err.Error())
 	}
 
 	user, err := s.repo.FindByEmail(ctx, req.Email)
 	if err != nil {
-		// Repository maps sql.ErrNoRows → domain.ErrNotFound
 		return dto.LoginResponse{}, fmt.Errorf("%w: email %s", domain.ErrNotFound, req.Email)
 	}
 
@@ -90,7 +90,8 @@ func (s *userService) Login(ctx context.Context, req dto.LoginRequest) (dto.Logi
 		return dto.LoginResponse{}, fmt.Errorf("%w: invalid email or password", domain.ErrUnauthorized)
 	}
 
-	token, err := jwt.NewJWTService(cfg.JWTSecret).GenerateJWT(user)
+	// Use the injected field instead of global config
+	token, err := jwt.NewJWTService(s.jwtSecret).GenerateJWT(user)
 	if err != nil {
 		return dto.LoginResponse{}, err
 	}

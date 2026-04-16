@@ -13,7 +13,6 @@ import (
 )
 
 // TransactionService defines the business-logic contract for transactions.
-// (Previously mis-spelled TrancationService — fixed here.)
 type TransactionService interface {
 	Save(ctx context.Context, transaction dto.TransactionRequest, idUser int) (domain.Transaction, error)
 	FindById(ctx context.Context, id int) (domain.Transaction, error)
@@ -22,11 +21,12 @@ type TransactionService interface {
 }
 
 type transactionService struct {
-	repo      domain.TransactionRepository // ← domain interface, not mysql package
-	userRepo  domain.UserRepository        // ← domain interface, not mysql package
-	DB        *sql.DB
-	validator *validator.Validate
-	producer  event.Producer
+	repo        domain.TransactionRepository
+	userRepo    domain.UserRepository
+	productRepo domain.ProductRepository // Added to fetch prices and check stock
+	DB          *sql.DB
+	validator   *validator.Validate
+	producer    event.Producer
 }
 
 // NewTransactionService constructs a TransactionService.
@@ -35,14 +35,16 @@ func NewTransactionService(
 	DB *sql.DB,
 	validate *validator.Validate,
 	userRepo domain.UserRepository,
+	productRepo domain.ProductRepository, // Added dependency
 	producer event.Producer,
 ) TransactionService {
 	return &transactionService{
-		repo:      repo,
-		userRepo:  userRepo,
-		DB:        DB,
-		validator: validate,
-		producer:  producer,
+		repo:        repo,
+		userRepo:    userRepo,
+		productRepo: productRepo,
+		DB:          DB,
+		validator:   validate,
+		producer:    producer,
 	}
 }
 
@@ -76,35 +78,51 @@ func (t *transactionService) GetAll(ctx context.Context, idUser int) ([]domain.T
 
 // Save implements TransactionService.
 func (t *transactionService) Save(ctx context.Context, transaction dto.TransactionRequest, idUser int) (domain.Transaction, error) {
-	// Verify the user actually exists before creating a transaction for them
+	// 1. Verify user exists
 	user, err := t.userRepo.FindById(ctx, idUser)
 	if err != nil {
 		return domain.Transaction{}, fmt.Errorf("%w: user id %d", domain.ErrNotFound, idUser)
 	}
 
-	transactionDetailID := uuid.NewString()
+	// 2. Calculate TotalPrice and validate stock server-side
+	var totalPrice int
+	domainProducts := make([]domain.TransactionDetail, 0, len(transaction.Products))
+	
+	for _, item := range transaction.Products {
+		product, err := t.productRepo.FindById(ctx, item.ID)
+		if err != nil {
+			return domain.Transaction{}, fmt.Errorf("%w: product id %d", domain.ErrNotFound, item.ID)
+		}
 
-	// Map DTO products to domain.TransactionDetail using corrected field names
-	products := make([]domain.TransactionDetail, 0, len(transaction.Products))
-	for _, p := range transaction.Products {
-		products = append(products, domain.TransactionDetail{
-			ProductID: p.ID,
-			Quantity:  p.Qty,
+		// Security: Check stock
+		if product.Stock < item.Qty {
+			return domain.Transaction{}, fmt.Errorf("%w: insufficient stock for product %d (available: %d, requested: %d)", 
+				domain.ErrInvalidInput, item.ID, product.Stock, item.Qty)
+		}
+
+		// Security: Calculate price based on DB value, not client input
+		totalPrice += product.Price * item.Qty
+
+		domainProducts = append(domainProducts, domain.TransactionDetail{
+			ProductID: item.ID,
+			Quantity:  item.Qty,
 		})
 	}
+
+	transactionDetailID := uuid.NewString()
 
 	transactionToSave := domain.Transaction{
 		UserID:              user.ID,
 		TransactionDetailID: transactionDetailID,
-		TotalPrice:          transaction.TotalPrice,
-		Products:            products,
+		TotalPrice:          totalPrice, // Server-side calculated
+		Products:            domainProducts,
 	}
 
 	tx, err := t.DB.BeginTx(ctx, nil)
 	if err != nil {
 		return domain.Transaction{}, err
 	}
-	defer tx.Rollback() //nolint:errcheck // rollback on deferred error is intentional
+	defer tx.Rollback()
 
 	savedTransaction, err := t.repo.Save(ctx, tx, transactionToSave)
 	if err != nil {

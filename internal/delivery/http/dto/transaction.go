@@ -1,11 +1,12 @@
 package dto
 
+type TransactionItem struct {
+	ID  int `json:"id"`
+	Qty int `json:"qty"`
+}
+
 type TransactionRequest struct {
-	TotalPrice int `json:"totalPrice" binding:"required"`
-	Products   []struct {
-		ID  int `json:"id" binding:"required"`
-		Qty int `json:"qty" binding:"required"`
-	} `json:"products" binding:"required"`
+	Products []TransactionItem `json:"products"`
 }
 
 type TransactionResponse struct {

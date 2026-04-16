@@ -28,7 +28,8 @@ func InitializedServer(cfg config.Config) (*http.Server, func(), error) {
 	userRepository := mysql.NewUserRepository(db)
 	v := _wireValue
 	validate := validator.New(v...)
-	userService := service.NewUserService(userRepository, db, validate)
+	string2 := ExtractJwtSecret(cfg)
+	userService := service.NewUserService(userRepository, db, validate, string2)
 	userHandler := handler.NewUserHandler(userService)
 	productRepository := mysql.NewProductRepository(db)
 	client := infrastructure.RedisConnection(cfg)
@@ -38,9 +39,7 @@ func InitializedServer(cfg config.Config) (*http.Server, func(), error) {
 	transactionRepository := mysql.NewTransactionRepository(db)
 	writer := infrastructure.NewKafkaWriter(cfg)
 	kafkaProducer := event.NewKafkaProducer(writer)
-	// NewTransactionService now accepts domain.XxxRepository — the mysql constructors
-	// return those interfaces, so no cast is needed.
-	transactionService := service.NewTransactionService(transactionRepository, db, validate, userRepository, kafkaProducer)
+	transactionService := service.NewTransactionService(transactionRepository, db, validate, userRepository, productRepository, kafkaProducer)
 	transactionHandler := handler.NewTransactionHandler(transactionService)
 	router := route.NewRouter(userHandler, productHandler, transactionHandler)
 	authMiddleware := middleware.NewAuthMiddleware(router)
@@ -57,7 +56,7 @@ var (
 
 var validatorSet = wire.NewSet(validator.New, wire.Value([]validator.Option{}))
 
-// Setup Kafka
+// Setup Kafka (Pastikan file infrastructure/kafka.go dan event/kafka_producer.go sudah dibuat)
 var eventSet = wire.NewSet(infrastructure.NewKafkaWriter, event.NewKafkaProducer, wire.Bind(new(event.Producer), new(*event.KafkaProducer)))
 
 var userSet = wire.NewSet(mysql.NewUserRepository, service.NewUserService, handler.NewUserHandler)
@@ -65,3 +64,8 @@ var userSet = wire.NewSet(mysql.NewUserRepository, service.NewUserService, handl
 var productSet = wire.NewSet(mysql.NewProductRepository, service.NewProductService, handler.NewProductHandler)
 
 var transactionSet = wire.NewSet(mysql.NewTransactionRepository, service.NewTransactionService, handler.NewTransactionHandler)
+
+// ExtractJwtSecret extracts the JWT secret from config for Wire to inject into NewUserService.
+func ExtractJwtSecret(cfg config.Config) string {
+	return cfg.JWTSecret
+}

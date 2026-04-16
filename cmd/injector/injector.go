@@ -26,7 +26,7 @@ var validatorSet = wire.NewSet(
 	wire.Value([]validator.Option{}),
 )
 
-// Setup Kafka (Pastikan file infrastructure/kafka.go dan event/kafka_producer.go sudah dibuat)
+// Setup Kafka
 var eventSet = wire.NewSet(
 	infrastructure.NewKafkaWriter,
 	event.NewKafkaProducer,
@@ -51,16 +51,21 @@ var transactionSet = wire.NewSet(
 	handler.NewTransactionHandler,
 )
 
-// Hapus parameter cache.Wrapper dari sini, biarkan Wire yang buat
+// ExtractJwtSecret extracts the JWT secret from config for Wire to inject into NewUserService.
+func ExtractJwtSecret(cfg config.Config) string {
+	return cfg.JWTSecret
+}
+
 func InitializedServer(cfg config.Config) (*http.Server, func(), error) {
 	wire.Build(
 		// 1. Infrastructure (Singletons)
 		infrastructure.DatabaseConnection,
-		infrastructure.RedisConnection, // Redis di-init sekali di sini
+		infrastructure.RedisConnection, 
 
 		// 2. Utils & Wrappers
 		redis.NewWrapper,
 		validatorSet,
+		ExtractJwtSecret,
 
 		// 3. Feature Sets
 		eventSet,

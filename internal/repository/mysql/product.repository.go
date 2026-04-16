@@ -29,8 +29,9 @@ func (p *productRepository) Delete(ctx context.Context, id int) error {
 	return nil
 }
 
-// FindById implements domain.ProductRepository.
+// FindById implements domain.ProductRepository using QueryRowContext for efficiency.
 func (p *productRepository) FindById(ctx context.Context, id int) (domain.Product, error) {
+	// Explicit column names prevent breakages from schema changes
 	q := "SELECT id, name, price, stock, description, img, category_id FROM products WHERE id = ?"
 
 	var product domain.Product
@@ -53,7 +54,7 @@ func (p *productRepository) FindById(ctx context.Context, id int) (domain.Produc
 	return product, nil
 }
 
-// GetAll implements domain.ProductRepository.
+// GetAll implements domain.ProductRepository with explicit columns and deferred Close.
 func (p *productRepository) GetAll(ctx context.Context, page int, pageSize int) ([]domain.Product, error) {
 	offset := (page - 1) * pageSize
 	query := "SELECT id, name, price, stock, description, img, category_id FROM products LIMIT ? OFFSET ?"
@@ -62,6 +63,7 @@ func (p *productRepository) GetAll(ctx context.Context, page int, pageSize int) 
 	if err != nil {
 		return nil, err
 	}
+	// Defer immediately to prevent connection leaks
 	defer rows.Close()
 
 	var products []domain.Product
@@ -84,6 +86,7 @@ func (p *productRepository) GetAll(ctx context.Context, page int, pageSize int) 
 		products = append(products, product)
 	}
 
+	// Always check rows.Err() after the loop
 	return products, rows.Err()
 }
 

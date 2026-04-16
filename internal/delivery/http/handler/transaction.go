@@ -84,7 +84,7 @@ func (th *TransactionHandler) CreateTransaction(w http.ResponseWriter, r *http.R
 
 	var req dto.TransactionRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		response.BadRequest(w, "invalid request body")
+		response.BadRequest(w, err.Error())
 		return
 	}
 
