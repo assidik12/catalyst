@@ -586,28 +586,32 @@ Aplikasi ini menggunakan **Apache Kafka** sebagai message broker untuk menangani
 
 ---
 
-## 🧪 Testing
+## 🧪 Testing (Comprehensive Suite)
 
-### Database Connection Test
+Aplikasi ini dilengkapi dengan pengujian level-industri (*enterprise-grade unit testing*) yang menyimulasikan berbagai kondisi, seperti interupsi koneksi, pembatalan *context*, serta *cache miss* tanpa membebani *production environment*.
+
+### 🏗️ Tools & Mocks yang Digunakan
+1. **[testify/mock](https://github.com/stretchr/testify):** Digunakan pada *Service Layer* dan *Handler Layer* untuk *mocking* repository interface dan *service interface* secara akurat tanpa menyentuh *database* atau Redis asli.
+2. **[DATA-DOG/go-sqlmock](https://github.com/DATA-DOG/go-sqlmock):** Digunakan untuk melakukan *mock* terhadap level driver SQL dan melacak query eksekusi `t.DB.BeginTx(ctx, nil)` serta konektivitas `Ping()`.
+3. **httptest:** Standar library `net/http/httptest` dimanfaatkan dalam lapisan *Delivery* (`middleware` & `handler`) untuk merekam skenario HTTP (401 Unauthorized, 200 OK, Canceled Context, dsb.).
+
+### ▶️ Run the Test Suite
 
 ```bash
-# Test koneksi MySQL
-go test -v ./test/connection.test.go
-```
-
-### Run All Tests
-
-```bash
-# Run all tests
+# Jalankan seluruh skenario Unit Tests
 go test -v ./...
 
-# Run tests with coverage
-go test -v -cover ./...
+# Jalankan Test dengan menampilkan Real Code Coverage dari seluruh package
+go test -v -coverpkg=./... ./...
 
-# Run specific package tests
-go test -v ./internal/service/...
+# Jalankan skenario per sub-package / domain specific (Contoh: area service validation)
+go test -v ./test/service/...
 ```
 
+### ✨ Contoh Beberapa Skema Evaluasi:
+- **Resiliency Testing**: Simulasi Redis mati paksa melalui *invalid dummy port* (`localhost:9999`) untuk men-segera-kan *I/O timeout* memicu *fallback* ke sistem komputasi MySQL.
+- **Context Cancellation**: Simulasi `context.WithCancel()` secara spesifik pada HTTP request handlers.
+- **Strict Data-Driven**: Logika penetapan *Transaction Total Price* dijalankan murni oleh *backend pricing query* tanpa bisa dipengaruhi memanipulasi parameter di level JWT/Frontend.
 ---
 
 ## 🐛 Troubleshooting
