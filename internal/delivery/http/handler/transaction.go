@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
-	"strconv"
 
 	"github.com/assidik12/go-restfull-api/internal/delivery/http/dto"
 	"github.com/assidik12/go-restfull-api/internal/delivery/http/middleware"
@@ -16,7 +15,7 @@ import (
 
 // TransactionHandler handles HTTP requests for transaction endpoints.
 type TransactionHandler struct {
-	service service.TransactionService // ← corrected from TrancationService
+	service service.TransactionService
 }
 
 // NewTransactionHandler constructs a TransactionHandler.
@@ -59,13 +58,13 @@ func (th *TransactionHandler) GetAllTransaction(w http.ResponseWriter, r *http.R
 
 // GetTransactionById handles GET /api/v1/transactions/:id
 func (th *TransactionHandler) GetTransactionById(w http.ResponseWriter, r *http.Request, params httprouter.Params) {
-	idInt, err := strconv.Atoi(params.ByName("id"))
-	if err != nil {
+	id := params.ByName("id")
+	if id == "" {
 		response.BadRequest(w, "invalid transaction ID")
 		return
 	}
 
-	transaction, err := th.service.FindById(r.Context(), idInt)
+	transaction, err := th.service.FindById(r.Context(), id)
 	if err != nil {
 		th.handleServiceError(w, err)
 		return
@@ -99,13 +98,13 @@ func (th *TransactionHandler) CreateTransaction(w http.ResponseWriter, r *http.R
 
 // DeleteTransaction handles DELETE /api/v1/transactions/:id
 func (th *TransactionHandler) DeleteTransaction(w http.ResponseWriter, r *http.Request, params httprouter.Params) {
-	idInt, err := strconv.Atoi(params.ByName("id"))
-	if err != nil {
+	id := params.ByName("id")
+	if id == "" {
 		response.BadRequest(w, "invalid transaction ID")
 		return
 	}
 
-	if err := th.service.Delete(r.Context(), idInt); err != nil {
+	if err := th.service.Delete(r.Context(), id); err != nil {
 		th.handleServiceError(w, err)
 		return
 	}

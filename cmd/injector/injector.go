@@ -4,6 +4,7 @@
 package injector
 
 import (
+	"log/slog"
 	"net/http"
 
 	"github.com/assidik12/go-restfull-api/config"
@@ -13,6 +14,7 @@ import (
 
 	"github.com/assidik12/go-restfull-api/internal/event"
 	"github.com/assidik12/go-restfull-api/internal/infrastructure"
+	"github.com/assidik12/go-restfull-api/internal/pkg/logger"
 	mysql "github.com/assidik12/go-restfull-api/internal/repository/mysql"
 	redis "github.com/assidik12/go-restfull-api/internal/repository/redis"
 	service "github.com/assidik12/go-restfull-api/internal/service"
@@ -51,6 +53,11 @@ var transactionSet = wire.NewSet(
 	handler.NewTransactionHandler,
 )
 
+// ProvideLogger initializes slog based on config environment.
+func ProvideLogger(cfg config.Config) *slog.Logger {
+	return logger.New(cfg.AppEnv)
+}
+
 // ExtractJwtSecret extracts the JWT secret from config for Wire to inject into NewUserService.
 func ExtractJwtSecret(cfg config.Config) string {
 	return cfg.JWTSecret
@@ -66,6 +73,7 @@ func InitializedServer(cfg config.Config) (*http.Server, func(), error) {
 		redis.NewWrapper,
 		validatorSet,
 		ExtractJwtSecret,
+		ProvideLogger,
 
 		// 3. Feature Sets
 		eventSet,

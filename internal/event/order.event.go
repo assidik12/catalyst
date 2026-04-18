@@ -2,54 +2,28 @@ package event
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
-	"log"
-
-	"github.com/segmentio/kafka-go"
+	"time"
 )
 
-// Producer adalah abstract contract.
-// Service cuma butuh tau cara Publish, ga perlu tau detail Kafka/RabbitMQ.
+const (
+	TopicOrderCreated = "order.created"
+)
+
+// Producer is the interface for event publishing.
 type Producer interface {
-	Publish(ctx context.Context, topic string, message interface{}) error
+	Publish(ctx context.Context, topic string, data any) error
 }
 
-type KafkaProducer struct {
-	Writer *kafka.Writer
+type ProductItem struct {
+	ProductID int `json:"product_id"`
+	Quantity  int `json:"quantity"`
 }
 
-// NewKafkaProducer constructor untuk Wire
-func NewKafkaProducer(writer *kafka.Writer) *KafkaProducer {
-	return &KafkaProducer{
-		Writer: writer,
-	}
+// OrderCreatedEvent represents the data published to Kafka when a transaction is completed.
+type OrderCreatedEvent struct {
+	TransactionID string        `json:"transaction_id"`
+	UserID        int           `json:"user_id"`
+	TotalPrice    int           `json:"total_price"`
+	Products      []ProductItem `json:"products"`
+	CreatedAt     time.Time     `json:"created_at"`
 }
-
-// Publish mengimplementasikan domainEvent.Producer
-func (k *KafkaProducer) Publish(ctx context.Context, topic string, message interface{}) error {
-	// 1. Serialize message ke JSON
-	payload, err := json.Marshal(message)
-	if err != nil {
-		return fmt.Errorf("failed to marshal message: %w", err)
-	}
-
-	// 2. Kirim ke Kafka
-	err = k.Writer.WriteMessages(ctx,
-		kafka.Message{
-			Topic: topic,
-			Value: payload,
-		},
-	)
-
-	if err != nil {
-		log.Printf("[Kafka] Failed to publish to topic %s: %v", topic, err)
-		return err
-	}
-
-	log.Printf("[Kafka] Successfully published to topic %s", topic)
-	return nil
-}
-
-// Pastikan KafkaProducer mengimplementasikan interface domainEvent.Producer
-var _ Producer = (*KafkaProducer)(nil)

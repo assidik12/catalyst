@@ -13,11 +13,13 @@ import (
 	"github.com/assidik12/go-restfull-api/internal/delivery/http/route"
 	"github.com/assidik12/go-restfull-api/internal/event"
 	"github.com/assidik12/go-restfull-api/internal/infrastructure"
+	"github.com/assidik12/go-restfull-api/internal/pkg/logger"
 	"github.com/assidik12/go-restfull-api/internal/repository/mysql"
 	"github.com/assidik12/go-restfull-api/internal/repository/redis"
 	"github.com/assidik12/go-restfull-api/internal/service"
 	"github.com/go-playground/validator/v10"
 	"github.com/google/wire"
+	"log/slog"
 	"net/http"
 )
 
@@ -39,7 +41,8 @@ func InitializedServer(cfg config.Config) (*http.Server, func(), error) {
 	transactionRepository := mysql.NewTransactionRepository(db)
 	writer := infrastructure.NewKafkaWriter(cfg)
 	kafkaProducer := event.NewKafkaProducer(writer)
-	transactionService := service.NewTransactionService(transactionRepository, db, validate, userRepository, productRepository, kafkaProducer)
+	slogLogger := ProvideLogger(cfg)
+	transactionService := service.NewTransactionService(transactionRepository, db, validate, userRepository, productRepository, kafkaProducer, slogLogger)
 	transactionHandler := handler.NewTransactionHandler(transactionService)
 	router := route.NewRouter(userHandler, productHandler, transactionHandler)
 	authMiddleware := middleware.NewAuthMiddleware(router)
@@ -64,6 +67,11 @@ var userSet = wire.NewSet(mysql.NewUserRepository, service.NewUserService, handl
 var productSet = wire.NewSet(mysql.NewProductRepository, service.NewProductService, handler.NewProductHandler)
 
 var transactionSet = wire.NewSet(mysql.NewTransactionRepository, service.NewTransactionService, handler.NewTransactionHandler)
+
+// ProvideLogger initializes slog based on config environment.
+func ProvideLogger(cfg config.Config) *slog.Logger {
+	return logger.New(cfg.AppEnv)
+}
 
 // ExtractJwtSecret extracts the JWT secret from config for Wire to inject into NewUserService.
 func ExtractJwtSecret(cfg config.Config) string {

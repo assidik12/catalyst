@@ -26,7 +26,7 @@ type UserRepository interface {
 // Save accepts a *sql.Tx so the caller controls the database transaction boundary.
 type TransactionRepository interface {
 	Save(ctx context.Context, tx *sql.Tx, transaction Transaction) (Transaction, error)
-	FindById(ctx context.Context, id int) (Transaction, error)
+	FindById(ctx context.Context, id string) (Transaction, error)
 	GetAll(ctx context.Context, idUser int) ([]Transaction, error)
-	Delete(ctx context.Context, id int) error
+	Delete(ctx context.Context, id string) error
 }

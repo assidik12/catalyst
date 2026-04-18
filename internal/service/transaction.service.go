@@ -4,6 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"log/slog"
+	"time"
 
 	"github.com/assidik12/go-restfull-api/internal/delivery/http/dto"
 	"github.com/assidik12/go-restfull-api/internal/domain"
@@ -15,28 +17,29 @@ import (
 // TransactionService defines the business-logic contract for transactions.
 type TransactionService interface {
 	Save(ctx context.Context, transaction dto.TransactionRequest, idUser int) (domain.Transaction, error)
-	FindById(ctx context.Context, id int) (domain.Transaction, error)
+	FindById(ctx context.Context, id string) (domain.Transaction, error)
 	GetAll(ctx context.Context, idUser int) ([]domain.Transaction, error)
-	Delete(ctx context.Context, id int) error
+	Delete(ctx context.Context, id string) error
 }
 
 type transactionService struct {
 	repo        domain.TransactionRepository
 	userRepo    domain.UserRepository
-	productRepo domain.ProductRepository // Added to fetch prices and check stock
+	productRepo domain.ProductRepository
 	DB          *sql.DB
 	validator   *validator.Validate
 	producer    event.Producer
+	logger      *slog.Logger
 }
 
-// NewTransactionService constructs a TransactionService.
 func NewTransactionService(
 	repo domain.TransactionRepository,
 	DB *sql.DB,
 	validate *validator.Validate,
 	userRepo domain.UserRepository,
-	productRepo domain.ProductRepository, // Added dependency
+	productRepo domain.ProductRepository,
 	producer event.Producer,
+	logger *slog.Logger,
 ) TransactionService {
 	return &transactionService{
 		repo:        repo,
@@ -45,22 +48,21 @@ func NewTransactionService(
 		DB:          DB,
 		validator:   validate,
 		producer:    producer,
+		logger:      logger,
 	}
 }
 
-// Delete implements TransactionService.
-func (t *transactionService) Delete(ctx context.Context, id int) error {
-	if id <= 0 {
-		return fmt.Errorf("%w: transaction id must be positive", domain.ErrInvalidInput)
+func (t *transactionService) Delete(ctx context.Context, id string) error {
+	if id == "" {
+		return fmt.Errorf("%w: transaction id must not be empty", domain.ErrInvalidInput)
 	}
 
 	return t.repo.Delete(ctx, id)
 }
 
-// FindById implements TransactionService.
-func (t *transactionService) FindById(ctx context.Context, id int) (domain.Transaction, error) {
-	if id <= 0 {
-		return domain.Transaction{}, fmt.Errorf("%w: transaction id must be positive", domain.ErrInvalidInput)
+func (t *transactionService) FindById(ctx context.Context, id string) (domain.Transaction, error) {
+	if id == "" {
+		return domain.Transaction{}, fmt.Errorf("%w: transaction id must not be empty", domain.ErrInvalidInput)
 	}
 
 	transaction, err := t.repo.FindById(ctx, id)
@@ -71,12 +73,10 @@ func (t *transactionService) FindById(ctx context.Context, id int) (domain.Trans
 	return transaction, nil
 }
 
-// GetAll implements TransactionService.
 func (t *transactionService) GetAll(ctx context.Context, idUser int) ([]domain.Transaction, error) {
 	return t.repo.GetAll(ctx, idUser)
 }
 
-// Save implements TransactionService.
 func (t *transactionService) Save(ctx context.Context, transaction dto.TransactionRequest, idUser int) (domain.Transaction, error) {
 	// 1. Verify user exists
 	user, err := t.userRepo.FindById(ctx, idUser)
@@ -84,38 +84,41 @@ func (t *transactionService) Save(ctx context.Context, transaction dto.Transacti
 		return domain.Transaction{}, fmt.Errorf("%w: user id %d", domain.ErrNotFound, idUser)
 	}
 
-	// 2. Calculate TotalPrice and validate stock server-side
+	// 2. Calculate TotalPrice, validate stock, and populate details
 	var totalPrice int
 	domainProducts := make([]domain.TransactionDetail, 0, len(transaction.Products))
-	
+	eventProducts := make([]event.ProductItem, 0, len(transaction.Products))
+
 	for _, item := range transaction.Products {
 		product, err := t.productRepo.FindById(ctx, item.ID)
 		if err != nil {
 			return domain.Transaction{}, fmt.Errorf("%w: product id %d", domain.ErrNotFound, item.ID)
 		}
 
-		// Security: Check stock
 		if product.Stock < item.Qty {
-			return domain.Transaction{}, fmt.Errorf("%w: insufficient stock for product %d (available: %d, requested: %d)", 
-				domain.ErrInvalidInput, item.ID, product.Stock, item.Qty)
+			return domain.Transaction{}, fmt.Errorf("%w: insufficient stock for product %d", domain.ErrInvalidInput, item.ID)
 		}
 
-		// Security: Calculate price based on DB value, not client input
 		totalPrice += product.Price * item.Qty
 
 		domainProducts = append(domainProducts, domain.TransactionDetail{
+			ProductID: item.ID,
+			Price:     product.Price, // Capture price at time of transaction
+			Quantity:  item.Qty,
+		})
+
+		eventProducts = append(eventProducts, event.ProductItem{
 			ProductID: item.ID,
 			Quantity:  item.Qty,
 		})
 	}
 
-	transactionDetailID := uuid.NewString()
-
 	transactionToSave := domain.Transaction{
-		UserID:              user.ID,
-		TransactionDetailID: transactionDetailID,
-		TotalPrice:          totalPrice, // Server-side calculated
-		Products:            domainProducts,
+		ID:         uuid.NewString(), // Use UUID as primary key string
+		UserID:     user.ID,
+		TotalPrice: totalPrice,
+		CreatedAt:  time.Now(),
+		Products:   domainProducts,
 	}
 
 	tx, err := t.DB.BeginTx(ctx, nil)
@@ -132,6 +135,31 @@ func (t *transactionService) Save(ctx context.Context, transaction dto.Transacti
 	if err := tx.Commit(); err != nil {
 		return domain.Transaction{}, err
 	}
+
+	// 3. Publish Event asynchronously
+	orderEvent := event.OrderCreatedEvent{
+		TransactionID: savedTransaction.ID,
+		UserID:        savedTransaction.UserID,
+		TotalPrice:    savedTransaction.TotalPrice,
+		Products:      eventProducts,
+		CreatedAt:     savedTransaction.CreatedAt,
+	}
+
+	go func() {
+		pubCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		if err := t.producer.Publish(pubCtx, event.TopicOrderCreated, orderEvent); err != nil {
+			t.logger.Error("failed to publish order event",
+				"transaction_id", orderEvent.TransactionID,
+				"error", err,
+			)
+		} else {
+			t.logger.Info("successfully published order event",
+				"transaction_id", orderEvent.TransactionID,
+			)
+		}
+	}()
 
 	return savedTransaction, nil
 }
