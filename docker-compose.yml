@@ -71,9 +71,12 @@ services:
       - .env
     ports:
       - "9092:9092"
+      - "9093:9093"
     environment:
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://message-broker:9092
-      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://message-broker:9092,EXTERNAL://localhost:9093
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT
+      KAFKA_LISTENERS: INTERNAL://0.0.0.0:9092,EXTERNAL://0.0.0.0:9093
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
       KAFKA_CREATE_TOPICS: "order_created:1:1" # Auto-create topic
     volumes:
@@ -98,6 +101,14 @@ services:
     restart: unless-stopped
     env_file:
       - .env
+    environment:
+      # Override hostnames for internal docker network usage
+      MYSQL_HOST: db
+      MYSQL_PORT: 3306
+      REDIS_HOST: cache
+      REDIS_PORT: 6379
+      KAFKA_HOST: message-broker
+      KAFKA_PORT: 9092
     ports:
       - "3001:3000"
     depends_on:

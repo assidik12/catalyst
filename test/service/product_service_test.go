@@ -2,6 +2,7 @@ package service_test
 
 import (
 	"context"
+	"database/sql"
 	"testing"
 	"time"
 
@@ -43,9 +44,14 @@ func (m *MockProductRepo) Delete(ctx context.Context, id int) error {
 	return args.Error(0)
 }
 
+func (m *MockProductRepo) DecrementStock(ctx context.Context, tx *sql.Tx, productID int, qty int) error {
+	args := m.Called(ctx, tx, productID, qty)
+	return args.Error(0)
+}
+
 func setupProductServiceTesting() (*MockProductRepo, service.ProductService) {
 	mockRepo := new(MockProductRepo)
-	
+
 	// Create a dummy redis client pointing to an invalid address so it immediately errors out (cache miss)
 	rClient := redis.NewClient(&redis.Options{
 		Addr:        "localhost:9999",

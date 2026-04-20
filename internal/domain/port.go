@@ -13,6 +13,7 @@ type ProductRepository interface {
 	Save(ctx context.Context, product Product) (Product, error)
 	Update(ctx context.Context, product Product) (Product, error)
 	Delete(ctx context.Context, id int) error
+	DecrementStock(ctx context.Context, tx *sql.Tx, productID int, qty int) error
 }
 
 // UserRepository defines the persistence contract for User.

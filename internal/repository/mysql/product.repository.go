@@ -119,3 +119,20 @@ func (p *productRepository) Update(ctx context.Context, product domain.Product) 
 
 	return product, nil
 }
+
+// DecrementStock implements domain.ProductRepository.
+func (p *productRepository) DecrementStock(ctx context.Context, tx *sql.Tx, productID int, qty int) error {
+	q := `UPDATE products SET stock = stock - ? WHERE id = ? AND stock >= ?`
+	result, err := tx.ExecContext(ctx, q, qty, productID, qty)
+	if err != nil {
+		return err
+	}
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rowsAffected == 0 {
+		return domain.ErrInvalidInput
+	}
+	return nil
+}

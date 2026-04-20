@@ -3,6 +3,7 @@ package mysql
 import (
 	"context"
 	"database/sql"
+	"time"
 
 	"github.com/assidik12/go-restfull-api/internal/domain"
 )
@@ -83,48 +84,76 @@ func (t *transactionRepository) FindById(ctx context.Context, id string) (domain
 }
 
 func (t *transactionRepository) GetAll(ctx context.Context, idUser int) ([]domain.Transaction, error) {
-	qMaster := "SELECT id, user_id, total_price, created_at FROM transactions WHERE user_id = ?"
-	rowsMaster, err := t.db.QueryContext(ctx, qMaster, idUser)
+	q := `
+		SELECT
+			t.id,
+			t.user_id,
+			t.total_price,
+			t.created_at,
+			COALESCE(td.product_id, 0)  AS product_id,
+			COALESCE(td.price, 0)       AS detail_price,
+			COALESCE(td.quantity, 0)    AS quantity
+		FROM transactions t
+		LEFT JOIN transaction_details td ON td.transaction_id = t.id
+		WHERE t.user_id = ?
+		ORDER BY t.created_at DESC, t.id
+	`
+
+	rows, err := t.db.QueryContext(ctx, q, idUser)
 	if err != nil {
 		return nil, err
 	}
-	defer rowsMaster.Close()
+	defer rows.Close()
 
-	var transactions []domain.Transaction
-	for rowsMaster.Next() {
-		var transaction domain.Transaction
-		err := rowsMaster.Scan(
-			&transaction.ID,
-			&transaction.UserID,
-			&transaction.TotalPrice,
-			&transaction.CreatedAt,
+	var order []string
+	txMap := make(map[string]*domain.Transaction)
+
+	for rows.Next() {
+		var (
+			txID        string
+			userID      int
+			totalPrice  int
+			createdAt   time.Time
+			productID   int
+			detailPrice int
+			quantity    int
 		)
-		if err != nil {
+
+		if err := rows.Scan(&txID, &userID, &totalPrice, &createdAt,
+			&productID, &detailPrice, &quantity); err != nil {
 			return nil, err
 		}
 
-		qDetail := "SELECT product_id, price, quantity FROM transaction_details WHERE transaction_id = ?"
-		rowsDetail, err := t.db.QueryContext(ctx, qDetail, transaction.ID)
-		if err != nil {
-			return nil, err
-		}
-
-		var details []domain.TransactionDetail
-		for rowsDetail.Next() {
-			var detail domain.TransactionDetail
-			if err := rowsDetail.Scan(&detail.ProductID, &detail.Price, &detail.Quantity); err != nil {
-				rowsDetail.Close()
-				return nil, err
+		if _, exists := txMap[txID]; !exists {
+			txMap[txID] = &domain.Transaction{
+				ID:         txID,
+				UserID:     userID,
+				TotalPrice: totalPrice,
+				CreatedAt:  createdAt,
+				Products:   []domain.TransactionDetail{},
 			}
-			details = append(details, detail)
+			order = append(order, txID)
 		}
-		rowsDetail.Close()
 
-		transaction.Products = details
-		transactions = append(transactions, transaction)
+		if productID != 0 {
+			txMap[txID].Products = append(txMap[txID].Products, domain.TransactionDetail{
+				ProductID: productID,
+				Price:     detailPrice,
+				Quantity:  quantity,
+			})
+		}
 	}
 
-	return transactions, nil
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	result := make([]domain.Transaction, 0, len(order))
+	for _, id := range order {
+		result = append(result, *txMap[id])
+	}
+
+	return result, nil
 }
 
 func (t *transactionRepository) Delete(ctx context.Context, id string) error {
