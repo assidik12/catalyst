@@ -189,3 +189,124 @@ func TestSaveTransaction_InsufficientStock(t *testing.T) {
 	mockProductRepo.AssertExpectations(t)
 	mockUserRepo.AssertExpectations(t)
 }
+
+func TestSaveTransaction_UserNotFound(t *testing.T) {
+	_, _, mockUserRepo, _, transactionService, _ := setupTransactionServiceTesting(t)
+
+	ctx := context.Background()
+	userId := 999
+
+	mockUserRepo.On("FindById", mock.Anything, userId).Return(domain.User{}, domain.ErrNotFound)
+
+	req := dto.TransactionRequest{
+		Products: []dto.TransactionItem{{ID: 101, Qty: 1}},
+	}
+
+	tx, err := transactionService.Save(ctx, req, userId)
+
+	assert.Error(t, err)
+	assert.ErrorIs(t, err, domain.ErrNotFound)
+	assert.Empty(t, tx)
+	mockUserRepo.AssertExpectations(t)
+}
+
+func TestSaveTransaction_ProductNotFound(t *testing.T) {
+	_, mockProductRepo, mockUserRepo, _, transactionService, _ := setupTransactionServiceTesting(t)
+
+	ctx := context.Background()
+	userId := 1
+
+	mockUserRepo.On("FindById", mock.Anything, userId).Return(domain.User{ID: userId, Email: "test@example.com"}, nil)
+	mockProductRepo.On("FindById", mock.Anything, 999).Return(domain.Product{}, domain.ErrNotFound)
+
+	req := dto.TransactionRequest{
+		Products: []dto.TransactionItem{{ID: 999, Qty: 1}},
+	}
+
+	tx, err := transactionService.Save(ctx, req, userId)
+
+	assert.Error(t, err)
+	assert.ErrorIs(t, err, domain.ErrNotFound)
+	assert.Empty(t, tx)
+	mockProductRepo.AssertExpectations(t)
+	mockUserRepo.AssertExpectations(t)
+}
+
+func TestFindTransactionById_Success(t *testing.T) {
+	mockTransactionRepo, _, _, _, transactionService, _ := setupTransactionServiceTesting(t)
+
+	ctx := context.Background()
+	txID := "tx-abc-123"
+
+	expectedTx := domain.Transaction{
+		ID:         txID,
+		UserID:     1,
+		TotalPrice: 50000,
+	}
+
+	mockTransactionRepo.On("FindById", mock.Anything, txID).Return(expectedTx, nil)
+
+	tx, err := transactionService.FindById(ctx, txID)
+
+	assert.NoError(t, err)
+	assert.Equal(t, expectedTx.ID, tx.ID)
+	assert.Equal(t, expectedTx.TotalPrice, tx.TotalPrice)
+	mockTransactionRepo.AssertExpectations(t)
+}
+
+func TestFindTransactionById_EmptyID(t *testing.T) {
+	_, _, _, _, transactionService, _ := setupTransactionServiceTesting(t)
+
+	ctx := context.Background()
+
+	tx, err := transactionService.FindById(ctx, "")
+
+	assert.Error(t, err)
+	assert.ErrorIs(t, err, domain.ErrInvalidInput)
+	assert.Empty(t, tx)
+}
+
+func TestGetAllTransactions_Success(t *testing.T) {
+	mockTransactionRepo, _, _, _, transactionService, _ := setupTransactionServiceTesting(t)
+
+	ctx := context.Background()
+	userID := 1
+
+	expectedTxs := []domain.Transaction{
+		{ID: "tx-1", UserID: userID, TotalPrice: 10000},
+		{ID: "tx-2", UserID: userID, TotalPrice: 20000},
+	}
+
+	mockTransactionRepo.On("GetAll", mock.Anything, userID).Return(expectedTxs, nil)
+
+	txs, err := transactionService.GetAll(ctx, userID)
+
+	assert.NoError(t, err)
+	assert.Len(t, txs, 2)
+	mockTransactionRepo.AssertExpectations(t)
+}
+
+func TestDeleteTransaction_Success(t *testing.T) {
+	mockTransactionRepo, _, _, _, transactionService, _ := setupTransactionServiceTesting(t)
+
+	ctx := context.Background()
+	txID := "tx-to-delete"
+
+	mockTransactionRepo.On("Delete", mock.Anything, txID).Return(nil)
+
+	err := transactionService.Delete(ctx, txID)
+
+	assert.NoError(t, err)
+	mockTransactionRepo.AssertExpectations(t)
+}
+
+func TestDeleteTransaction_EmptyID(t *testing.T) {
+	_, _, _, _, transactionService, _ := setupTransactionServiceTesting(t)
+
+	ctx := context.Background()
+
+	err := transactionService.Delete(ctx, "")
+
+	assert.Error(t, err)
+	assert.ErrorIs(t, err, domain.ErrInvalidInput)
+}
