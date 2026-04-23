@@ -127,31 +127,49 @@ Learn how Catalyst handles these with pattern that scale to millions of users.
 
 ## 🏗️ Arsitektur
 
-Aplikasi ini menggunakan **Clean Architecture** dengan **Event-Driven Architecture** untuk asynchronous processing:
+Aplikasi ini menggunakan **Clean Architecture** yang terintegrasi dengan **Event-Driven Architecture** untuk menopang platform *commerce* yang sangat *scalable* dan tangguh (*resilient*).
+
+### Layered Architecture Diagram
 
 <div align="center">
 
-```
-┌─────────────┐      ┌─────────────┐      ┌─────────────┐
-│   Handler   │─────▶│   Service   │─────▶│ Repository  │
-│  (HTTP/DTO) │      │  (Business) │      │   (MySQL)   │
-└─────────────┘      └──────┬──────┘      └─────────────┘
-                            │
-                            │ Publish Event
-                            ▼
-                     ┌─────────────┐
-                     │    Kafka    │
-                     │   Broker    │
-                     └──────┬──────┘
-                            │ Subscribe
-                            ▼
-                     ┌─────────────┐
-                     │  Consumer   │
-                     │  (Worker)   │
-                     └─────────────┘
+```text
+       [Client Request / HTTP]
+                 │
+                 ▼
+ ┌───────────────────────────────┐
+ │       HTTP Handler (Delivery) │  ← Menerima input, parsing DTO, HTTP Response
+ └───────────────┬───────────────┘
+                 │
+                 ▼
+ ┌───────────────────────────────┐  ← Validasi bisnis, kalkulasi harga, orkestrasi
+ │      Service (Use Case)       │  
+ │   [ Transaction Atomicity ]   │─────┐ (Publish Async Event)
+ └───────────────┬───────────────┘     │
+                 │                     ▼
+                 ▼              ┌────────────────┐
+ ┌───────────────────────────────┐      │ Apache Kafka   │  ← Event Broker untuk Asynchronous Task
+ │   Repository (Data Access)    │      │ (Message Bus)  │  
+ │   [ Cache Stampede Protect ]  │      └────────────────┘
+ └───────────────┬───────────────┘             │
+                 │                             ▼
+                 │                      ┌────────────────┐
+         ┌───────┴───────┐              │  Async Workers │  ← Notifikasi (Email), Third-party integrations
+         ▼               ▼              └────────────────┘
+ ┌──────────────┐ ┌──────────────┐
+ │    Redis     │ │    MySQL     │
+ │ (Multi-tier  │ │ (Source of   │
+ │   Caching)   │ │    Truth)    │
+ └──────────────┘ └──────────────┘
 ```
 
 </div>
+
+**Setiap Layer memiliki batasan yang tegas:**
+- **Handler (Presentation)**: Hanya fokus pada HTTP layer, deserialization JSON -> DTO, dan pemetaan *Error Sentinel* menjadi HTTP Status Code yang tepat.
+- **Service (Business Logic)**: Tidak tahu soal *database* spesifik atau HTTP. Menjalankan *Use Cases* utama (misal: memotong stok, memastikan harga dari DB, melempar Event).
+- **Repository (Data Access)**: Berfokus mengeksekusi query database dan caching (Redis). Di sinilah `Singleflight` digunakan untuk mencegah *Cache Stampede*.
+- **Infrastructure**: Inisialisasi dependensi eskternal (Koneksi Database, Redis Client, Kafka Writer).
 
 ### 📂 Struktur Folder
 
@@ -239,6 +257,8 @@ go-restfull-api/
 | **Migration**      | [`golang-migrate`](https://github.com/golang-migrate/migrate)             | Database migrations               |
 | **Password**       | [`golang.org/x/crypto`](https://pkg.go.dev/golang.org/x/crypto)           | Bcrypt hashing                    |
 | **UUID**           | [`google/uuid`](https://github.com/google/uuid)                           | UUID generation                   |
+| **Testing**        | [`stretchr/testify`](https://github.com/stretchr/testify)                 | Assertions & Mocking framework    |
+| **Testing Mocks**  | [`DATA-DOG/go-sqlmock`](https://github.com/DATA-DOG/go-sqlmock)           | Mocking SQL driver behaviour      |
 
 ---
 
