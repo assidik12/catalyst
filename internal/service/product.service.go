@@ -60,7 +60,7 @@ func (p *productService) CreateProduct(ctx context.Context, req dto.ProductReque
 		Price:       req.Price,
 		Description: req.Description,
 		Img:         req.Img,
-		CategoryId:  req.CategoryId,
+		CategoryID:  req.CategoryID,
 	}
 
 	product, err := p.repo.Save(ctx, productEntity)
@@ -150,7 +150,7 @@ func (p *productService) UpdateProduct(ctx context.Context, id int, req dto.Prod
 		Price:       req.Price,
 		Description: req.Description,
 		Img:         req.Img,
-		CategoryId:  req.CategoryId,
+		CategoryID:  req.CategoryID,
 	}
 
 	product, err := p.repo.Update(ctx, productEntity)
@@ -175,5 +175,3 @@ func (p *productService) DeleteProduct(ctx context.Context, id int) error {
 
 	return nil
 }
-
-

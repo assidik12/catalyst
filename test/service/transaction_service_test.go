@@ -69,7 +69,6 @@ func (m *MockProducer) Publish(ctx context.Context, topic string, data any) erro
 	return args.Error(0)
 }
 
-
 func setupTransactionServiceTesting(t *testing.T) (*MockTransactionRepo, *MockProductRepo, *MockUserRepo, *MockProducer, service.TransactionService, sqlmock.Sqlmock) {
 	mockTransactionRepo := new(MockTransactionRepo)
 	mockProductRepo := new(MockProductRepo)
@@ -114,12 +113,13 @@ func TestSaveTransaction_ServerSidePriceCalculation(t *testing.T) {
 		Price: 50000,
 		Stock: 50,
 	}, nil)
+	mockProductRepo.On("DecrementStock", mock.Anything, mock.AnythingOfType("*sql.Tx"), 101, 2).Return(nil)
 
 	req := dto.TransactionRequest{
 		Products: []dto.TransactionItem{
 			{
-				ID:  101,
-				Qty: 2,
+				ProductID: 101,
+				Quantity:  2,
 			},
 		},
 	}
@@ -154,10 +154,13 @@ func TestSaveTransaction_ServerSidePriceCalculation(t *testing.T) {
 }
 
 func TestSaveTransaction_InsufficientStock(t *testing.T) {
-	_, mockProductRepo, mockUserRepo, _, transactionService, _ := setupTransactionServiceTesting(t)
+	_, mockProductRepo, mockUserRepo, _, transactionService, sqlMock := setupTransactionServiceTesting(t)
 
 	ctx := context.Background()
 	userId := 1
+
+	sqlMock.ExpectBegin()
+	sqlMock.ExpectRollback()
 
 	// Setup valid user
 	mockUserRepo.On("FindById", mock.Anything, userId).Return(domain.User{ID: userId, Email: "test@example.com"}, nil)
@@ -173,8 +176,8 @@ func TestSaveTransaction_InsufficientStock(t *testing.T) {
 	req := dto.TransactionRequest{
 		Products: []dto.TransactionItem{
 			{
-				ID:  101,
-				Qty: 5, // Requires 5, but stock is only 1
+				ProductID: 101,
+				Quantity:  5, // Requires 5, but stock is only 1
 			},
 		},
 	}

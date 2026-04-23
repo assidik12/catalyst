@@ -41,10 +41,10 @@ func InitializedServer(cfg config.Config) (*http.Server, func(), error) {
 	transactionRepository := mysql.NewTransactionRepository(db)
 	writer := infrastructure.NewKafkaWriter(cfg)
 	kafkaProducer := event.NewKafkaProducer(writer)
-	slogLogger := ProvideLogger(cfg)
-	transactionService := service.NewTransactionService(transactionRepository, db, validate, userRepository, productRepository, kafkaProducer, slogLogger)
+	logger := ProvideLogger(cfg)
+	transactionService := service.NewTransactionService(transactionRepository, db, validate, userRepository, productRepository, kafkaProducer, logger)
 	transactionHandler := handler.NewTransactionHandler(transactionService)
-	router := route.NewRouter(userHandler, productHandler, transactionHandler)
+	router := route.NewRouter(userHandler, productHandler, transactionHandler, string2)
 	authMiddleware := middleware.NewAuthMiddleware(router)
 	server := config.NewServer(authMiddleware)
 	return server, func() {
@@ -59,7 +59,7 @@ var (
 
 var validatorSet = wire.NewSet(validator.New, wire.Value([]validator.Option{}))
 
-// Setup Kafka (Pastikan file infrastructure/kafka.go dan event/kafka_producer.go sudah dibuat)
+// Setup Kafka
 var eventSet = wire.NewSet(infrastructure.NewKafkaWriter, event.NewKafkaProducer, wire.Bind(new(event.Producer), new(*event.KafkaProducer)))
 
 var userSet = wire.NewSet(mysql.NewUserRepository, service.NewUserService, handler.NewUserHandler)

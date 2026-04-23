@@ -7,5 +7,5 @@ type Product struct {
 	Stock       int
 	Description string
 	Img         string
-	CategoryId  int
+	CategoryID  int
 }

@@ -84,32 +84,43 @@ func (t *transactionService) Save(ctx context.Context, transaction dto.Transacti
 		return domain.Transaction{}, fmt.Errorf("%w: user id %d", domain.ErrNotFound, idUser)
 	}
 
-	// 2. Calculate TotalPrice, validate stock, and populate details
+	// 2. Start database transaction BEFORE the loop
+	tx, err := t.DB.BeginTx(ctx, nil)
+	if err != nil {
+		return domain.Transaction{}, err
+	}
+	defer tx.Rollback()
+
+	// 3. Calculate TotalPrice, validate stock, decrement stock, and populate details
 	var totalPrice int
 	domainProducts := make([]domain.TransactionDetail, 0, len(transaction.Products))
 	eventProducts := make([]event.ProductItem, 0, len(transaction.Products))
 
 	for _, item := range transaction.Products {
-		product, err := t.productRepo.FindById(ctx, item.ID)
+		product, err := t.productRepo.FindById(ctx, item.ProductID)
 		if err != nil {
-			return domain.Transaction{}, fmt.Errorf("%w: product id %d", domain.ErrNotFound, item.ID)
+			return domain.Transaction{}, fmt.Errorf("%w: product id %d", domain.ErrNotFound, item.ProductID)
 		}
 
-		if product.Stock < item.Qty {
-			return domain.Transaction{}, fmt.Errorf("%w: insufficient stock for product %d", domain.ErrInvalidInput, item.ID)
+		if product.Stock < item.Quantity {
+			return domain.Transaction{}, fmt.Errorf("%w: insufficient stock for product %d", domain.ErrInvalidInput, item.ProductID)
 		}
 
-		totalPrice += product.Price * item.Qty
+		if err := t.productRepo.DecrementStock(ctx, tx, item.ProductID, item.Quantity); err != nil {
+			return domain.Transaction{}, fmt.Errorf("failed to decrement stock: %w", err)
+		}
+
+		totalPrice += product.Price * item.Quantity
 
 		domainProducts = append(domainProducts, domain.TransactionDetail{
-			ProductID: item.ID,
+			ProductID: item.ProductID,
 			Price:     product.Price, // Capture price at time of transaction
-			Quantity:  item.Qty,
+			Quantity:  item.Quantity,
 		})
 
 		eventProducts = append(eventProducts, event.ProductItem{
-			ProductID: item.ID,
-			Quantity:  item.Qty,
+			ProductID: item.ProductID,
+			Quantity:  item.Quantity,
 		})
 	}
 
@@ -120,12 +131,6 @@ func (t *transactionService) Save(ctx context.Context, transaction dto.Transacti
 		CreatedAt:  time.Now(),
 		Products:   domainProducts,
 	}
-
-	tx, err := t.DB.BeginTx(ctx, nil)
-	if err != nil {
-		return domain.Transaction{}, err
-	}
-	defer tx.Rollback()
 
 	savedTransaction, err := t.repo.Save(ctx, tx, transactionToSave)
 	if err != nil {

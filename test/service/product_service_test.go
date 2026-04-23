@@ -74,7 +74,7 @@ func TestGetProductById_Success(t *testing.T) {
 		Stock:       10,
 		Description: "A test product",
 		Img:         "test.png",
-		CategoryId:  1,
+		CategoryID:  1,
 	}
 
 	mockRepo.On("FindById", mock.Anything, 1).Return(expectedProduct, nil)

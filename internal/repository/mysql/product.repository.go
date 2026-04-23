@@ -42,7 +42,7 @@ func (p *productRepository) FindById(ctx context.Context, id int) (domain.Produc
 		&product.Stock,
 		&product.Description,
 		&product.Img,
-		&product.CategoryId,
+		&product.CategoryID,
 	)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -77,7 +77,7 @@ func (p *productRepository) GetAll(ctx context.Context, page int, pageSize int) 
 			&product.Stock,
 			&product.Description,
 			&product.Img,
-			&product.CategoryId,
+			&product.CategoryID,
 		)
 		if err != nil {
 			return nil, err
@@ -94,7 +94,7 @@ func (p *productRepository) GetAll(ctx context.Context, page int, pageSize int) 
 func (p *productRepository) Save(ctx context.Context, product domain.Product) (domain.Product, error) {
 	q := "INSERT INTO products (name, price, stock, description, img, category_id) VALUES (?, ?, ?, ?, ?, ?)"
 
-	result, err := p.db.ExecContext(ctx, q, product.Name, product.Price, product.Stock, product.Description, product.Img, product.CategoryId)
+	result, err := p.db.ExecContext(ctx, q, product.Name, product.Price, product.Stock, product.Description, product.Img, product.CategoryID)
 	if err != nil {
 		return domain.Product{}, err
 	}
@@ -112,7 +112,7 @@ func (p *productRepository) Save(ctx context.Context, product domain.Product) (d
 func (p *productRepository) Update(ctx context.Context, product domain.Product) (domain.Product, error) {
 	q := "UPDATE products SET name = ?, price = ?, stock = ?, description = ?, img = ?, category_id = ? WHERE id = ?"
 
-	_, err := p.db.ExecContext(ctx, q, product.Name, product.Price, product.Stock, product.Description, product.Img, product.CategoryId, product.ID)
+	_, err := p.db.ExecContext(ctx, q, product.Name, product.Price, product.Stock, product.Description, product.Img, product.CategoryID, product.ID)
 	if err != nil {
 		return domain.Product{}, err
 	}

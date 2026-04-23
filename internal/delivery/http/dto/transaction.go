@@ -1,8 +1,8 @@
 package dto
 
 type TransactionItem struct {
-	ID  int `json:"id"`
-	Qty int `json:"qty"`
+	ProductID int `json:"id"`
+	Quantity  int `json:"qty"`
 }
 
 type TransactionRequest struct {

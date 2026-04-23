@@ -3,16 +3,19 @@ package route
 import (
 	"net/http"
 
-	"github.com/assidik12/go-restfull-api/config"
 	"github.com/assidik12/go-restfull-api/internal/delivery/http/handler"
 	"github.com/assidik12/go-restfull-api/internal/delivery/http/middleware"
 	"github.com/julienschmidt/httprouter"
 )
 
-func NewRouter(userHandler *handler.UserHandler, productHandler *handler.ProductHandler, transactionHandler *handler.TransactionHandler) *httprouter.Router {
+func NewRouter(
+	userHandler *handler.UserHandler,
+	productHandler *handler.ProductHandler,
+	transactionHandler *handler.TransactionHandler,
+	jwtSecret string,
+) *httprouter.Router {
 	router := httprouter.New()
 	middleware := middleware.NewAuthMiddleware(router)
-	c := config.GetConfig()
 
 	docsDir := "./docs/swagger"
 	fileServer := http.FileServer(http.Dir(docsDir))
@@ -23,13 +26,13 @@ func NewRouter(userHandler *handler.UserHandler, productHandler *handler.Product
 
 	router.GET("/api/v1/products", productHandler.GetAllProducts)
 	router.GET("/api/v1/products/:id", productHandler.GetProductById)
-	router.POST("/api/v1/products", middleware.Middleware("admin", productHandler.CreateProduct, c.JWTSecret))
-	router.PUT("/api/v1/products/:id", middleware.Middleware("admin", productHandler.UpdateProduct, c.JWTSecret))
-	router.DELETE("/api/v1/products/:id", middleware.Middleware("admin", productHandler.DeleteProduct, c.JWTSecret))
+	router.POST("/api/v1/products", middleware.Middleware("admin", productHandler.CreateProduct, jwtSecret))
+	router.PUT("/api/v1/products/:id", middleware.Middleware("admin", productHandler.UpdateProduct, jwtSecret))
+	router.DELETE("/api/v1/products/:id", middleware.Middleware("admin", productHandler.DeleteProduct, jwtSecret))
 
-	router.GET("/api/v1/transactions", middleware.Middleware("user", transactionHandler.GetAllTransaction, c.JWTSecret))
-	router.GET("/api/v1/transactions/:id", middleware.Middleware("user", transactionHandler.GetTransactionById, c.JWTSecret))
-	router.POST("/api/v1/transactions", middleware.Middleware("user", transactionHandler.CreateTransaction, c.JWTSecret))
+	router.GET("/api/v1/transactions", middleware.Middleware("user", transactionHandler.GetAllTransaction, jwtSecret))
+	router.GET("/api/v1/transactions/:id", middleware.Middleware("user", transactionHandler.GetTransactionById, jwtSecret))
+	router.POST("/api/v1/transactions", middleware.Middleware("user", transactionHandler.CreateTransaction, jwtSecret))
 
 	router.Handler("GET", "/api/v1/docs/*filepath", http.StripPrefix("/api/v1/docs/", fileServer))
 

@@ -64,8 +64,13 @@ func (middleware AuthMiddleware) Middleware(role string, next httprouter.Handle,
 
 }
 
-// Helper function to check if user role is allowed
-func isRoleAllowed(userRole string, allowedRoles string) bool {
-
-	return strings.EqualFold(userRole, allowedRoles)
+// isRoleAllowed checks if user role is allowed.
+// Admins have access to all routes regardless of the required role.
+func isRoleAllowed(userRole string, requiredRole string) bool {
+	// Admin has access to everything
+	if strings.EqualFold(userRole, "admin") {
+		return true
+	}
+	// Otherwise, exact match required
+	return strings.EqualFold(userRole, requiredRole)
 }

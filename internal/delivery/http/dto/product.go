@@ -6,7 +6,7 @@ type ProductRequest struct {
 	Stock       int    `json:"stock" binding:"required"`
 	Img         string `json:"img" binding:"required"`
 	Description string `json:"description" binding:"required"`
-	CategoryId  int    `json:"categoryId" binding:"required"`
+	CategoryID  int    `json:"categoryId" binding:"required"`
 }
 
 type ProductResponse struct {
@@ -16,5 +16,5 @@ type ProductResponse struct {
 	Stock       int    `json:"stock"`
 	Img         string `json:"img"`
 	Description string `json:"description"`
-	CategoryId  int    `json:"categoryId"`
+	CategoryID  int    `json:"categoryId"`
 }
