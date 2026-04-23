@@ -8,9 +8,9 @@ import (
 
 	"golang.org/x/sync/singleflight"
 
-	"github.com/assidik12/go-restfull-api/internal/delivery/http/dto"
-	"github.com/assidik12/go-restfull-api/internal/domain"
-	"github.com/assidik12/go-restfull-api/internal/repository/redis"
+	"github.com/assidik12/catalyst/internal/delivery/http/dto"
+	"github.com/assidik12/catalyst/internal/domain"
+	"github.com/assidik12/catalyst/internal/repository/redis"
 	"github.com/go-playground/validator/v10"
 )
 

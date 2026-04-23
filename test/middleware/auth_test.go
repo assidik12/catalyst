@@ -5,7 +5,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/assidik12/go-restfull-api/internal/delivery/http/middleware"
+	"github.com/assidik12/catalyst/internal/delivery/http/middleware"
 	"github.com/julienschmidt/httprouter"
 	"github.com/stretchr/testify/assert"
 )

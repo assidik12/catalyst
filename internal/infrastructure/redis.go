@@ -5,7 +5,7 @@ import (
 	"errors"
 	"log"
 
-	"github.com/assidik12/go-restfull-api/config"
+	"github.com/assidik12/catalyst/config"
 	"github.com/redis/go-redis/v9"
 )
 

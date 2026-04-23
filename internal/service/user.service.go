@@ -6,10 +6,10 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/assidik12/go-restfull-api/internal/delivery/http/dto"
-	"github.com/assidik12/go-restfull-api/internal/domain"
-	"github.com/assidik12/go-restfull-api/internal/pkg/hash"
-	"github.com/assidik12/go-restfull-api/internal/pkg/jwt"
+	"github.com/assidik12/catalyst/internal/delivery/http/dto"
+	"github.com/assidik12/catalyst/internal/domain"
+	"github.com/assidik12/catalyst/internal/pkg/hash"
+	"github.com/assidik12/catalyst/internal/pkg/jwt"
 	"github.com/go-playground/validator/v10"
 
 	"golang.org/x/crypto/bcrypt"

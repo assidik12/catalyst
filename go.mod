@@ -1,4 +1,4 @@
-module github.com/assidik12/go-restfull-api
+module github.com/assidik12/catalyst
 
 go 1.24.0
 

@@ -6,10 +6,10 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/assidik12/go-restfull-api/internal/delivery/http/dto"
-	"github.com/assidik12/go-restfull-api/internal/domain"
-	"github.com/assidik12/go-restfull-api/internal/pkg/response"
-	"github.com/assidik12/go-restfull-api/internal/service"
+	"github.com/assidik12/catalyst/internal/delivery/http/dto"
+	"github.com/assidik12/catalyst/internal/domain"
+	"github.com/assidik12/catalyst/internal/pkg/response"
+	"github.com/assidik12/catalyst/internal/service"
 	"github.com/julienschmidt/httprouter"
 )
 

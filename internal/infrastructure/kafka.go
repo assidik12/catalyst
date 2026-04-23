@@ -3,7 +3,7 @@ package infrastructure
 import (
 	"log"
 
-	"github.com/assidik12/go-restfull-api/config"
+	"github.com/assidik12/catalyst/config"
 	"github.com/segmentio/kafka-go"
 )
 

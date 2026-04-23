@@ -5,7 +5,7 @@ import (
 	"database/sql"
 	"time"
 
-	"github.com/assidik12/go-restfull-api/internal/domain"
+	"github.com/assidik12/catalyst/internal/domain"
 )
 
 type transactionRepository struct {

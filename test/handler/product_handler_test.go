@@ -7,9 +7,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/assidik12/go-restfull-api/internal/delivery/http/handler"
-	"github.com/assidik12/go-restfull-api/internal/domain"
-	"github.com/assidik12/go-restfull-api/internal/delivery/http/dto"
+	"github.com/assidik12/catalyst/internal/delivery/http/handler"
+	"github.com/assidik12/catalyst/internal/domain"
+	"github.com/assidik12/catalyst/internal/delivery/http/dto"
 	"github.com/julienschmidt/httprouter"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"

@@ -4,7 +4,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/assidik12/go-restfull-api/internal/domain"
+	"github.com/assidik12/catalyst/internal/domain"
 	"github.com/golang-jwt/jwt/v5"
 )
 

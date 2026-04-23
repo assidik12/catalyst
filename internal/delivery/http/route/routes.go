@@ -3,8 +3,8 @@ package route
 import (
 	"net/http"
 
-	"github.com/assidik12/go-restfull-api/internal/delivery/http/handler"
-	"github.com/assidik12/go-restfull-api/internal/delivery/http/middleware"
+	"github.com/assidik12/catalyst/internal/delivery/http/handler"
+	"github.com/assidik12/catalyst/internal/delivery/http/middleware"
 	"github.com/julienschmidt/httprouter"
 )
 

@@ -3,7 +3,7 @@ package config
 import (
 	"net/http"
 
-	"github.com/assidik12/go-restfull-api/internal/delivery/http/middleware"
+	"github.com/assidik12/catalyst/internal/delivery/http/middleware"
 )
 
 func NewServer(authMiddleware *middleware.AuthMiddleware) *http.Server {

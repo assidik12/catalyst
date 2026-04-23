@@ -7,7 +7,7 @@ import (
 	"log"
 	"time"
 
-	"github.com/assidik12/go-restfull-api/config"
+	"github.com/assidik12/catalyst/config"
 )
 
 func DatabaseConnection(c config.Config) *sql.DB {

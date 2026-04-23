@@ -6,9 +6,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/assidik12/go-restfull-api/internal/domain"
-	redis_repo "github.com/assidik12/go-restfull-api/internal/repository/redis"
-	"github.com/assidik12/go-restfull-api/internal/service"
+	"github.com/assidik12/catalyst/internal/domain"
+	redis_repo "github.com/assidik12/catalyst/internal/repository/redis"
+	"github.com/assidik12/catalyst/internal/service"
 	"github.com/go-playground/validator/v10"
 	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"

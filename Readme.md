@@ -1,34 +1,28 @@
-<div align="center">
+# 🚀 Catalyst
 
-# 🛒 Go E-Commerce REST API
+**Enterprise-Grade Event-Driven Commerce Backend**
 
-### _Enterprise-grade RESTful API with Event-Driven Architecture_
+[![Go Version](https://img.shields.io/badge/Go-1.24+-00ADD8?style=for-the-badge&logo=go)](https://go.dev/)
+[![Architecture](https://img.shields.io/badge/Architecture-Clean%20Architecture-1e90ff?style=for-the-badge)](https://blog.cleancoder.com/uncle-bob/2012/08/13/the-clean-architecture.html)
+[![Event-Driven](https://img.shields.io/badge/Pattern-Event%20Driven-ff6b6b?style=for-the-badge)](https://en.wikipedia.org/wiki/Event-driven_architecture)
 
-[![Go Version](https://img.shields.io/badge/Go-1.22+-00ADD8?style=for-the-badge&logo=go)](https://go.dev/)
-[![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?style=for-the-badge&logo=docker)](https://www.docker.com/)
-[![MySQL](https://img.shields.io/badge/MySQL-8.0-4479A1?style=for-the-badge&logo=mysql&logoColor=white)](https://www.mysql.com/)
-[![Redis](https://img.shields.io/badge/Redis-7.0-DC382D?style=for-the-badge&logo=redis&logoColor=white)](https://redis.io/)
-[![Kafka](https://img.shields.io/badge/Apache%20Kafka-3.0-231F20?style=for-the-badge&logo=apachekafka)](https://kafka.apache.org/)
-[![License](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)](LICENSE)
+### What is Catalyst?
 
-**[Features](#-fitur-utama)** • **[Architecture](#️-arsitektur)** • **[Quick Start](#-quick-start)** • **[Documentation](#-dokumentasi-api)** • **[Contributing](#-kontribusi)**
+Catalyst demonstrates how to build a **production-grade e-commerce platform** 
+using Go and microservices patterns. The project focuses on:
 
----
+- 🏗️ **Clean Architecture** — Clear separation of concerns for maintainability
+- ⚡ **Event-Driven Design** — Kafka-based async processing without data loss
+- 🔐 **Transaction Safety** — Atomic operations, server-side validation
+- 📊 **Real-time Performance** — Redis caching, singleflight cache stampede prevention
+- 🎯 **Production Ready** — Graceful shutdown, structured logging, error handling
 
-</div>
+### Why "Catalyst"?
 
-## 📖 Tentang Proyek
-
-Sebuah RESTful API modern untuk aplikasi E-Commerce yang dibangun dengan **Go (Golang)** mengikuti prinsip **Clean Architecture** dan **Event-Driven Architecture**. Proyek ini menyediakan backend yang robust, scalable, dan mudah di-maintain untuk mengelola user, produk, dan transaksi dengan dukungan message broker untuk proses asinkron.
-
-### 🎯 Kenapa Proyek Ini?
-
-- 🏗️ **Clean Architecture** - Pemisahan concern yang jelas untuk maintainability
-- 🚀 **Production Ready** - Fully containerized dengan Docker & Docker Compose
-- ⚡ **High Performance** - Redis caching & singleflight untuk optimasi response time
-- 🔐 **Secure** - JWT authentication & middleware protection
-- 📨 **Event-Driven** - Apache Kafka untuk asynchronous task processing
-- 📦 **Easy Deployment** - One-command setup untuk development & production
+In chemistry, a catalyst **accelerates a reaction without being consumed**. 
+Similarly, Catalyst is the infrastructure layer that makes your commerce 
+system work reliably — transparent, fast, and essential. It's not the 
+business logic; it's what makes good business logic possible.
 
 ---
 
@@ -83,6 +77,51 @@ Sebuah RESTful API modern untuk aplikasi E-Commerce yang dibangun dengan **Go (G
 </td>
 </tr>
 </table>
+
+---
+
+## 🎯 Why This Project Matters
+
+This project is not just another e-commerce API. It's a **reference implementation** 
+demonstrating how to build reliable, scalable systems with Go. Each design decision 
+solves real production problems:
+
+### Problem: Data Integrity
+**Scenario:** Two requests charge customer simultaneously → double charge disaster
+
+**Solution:** Atomic database transactions. All changes succeed together or 
+all rollback. No partial states.
+
+### Problem: Performance Under Load
+**Scenario:** 1000 concurrent requests for "iPhone 15" → database melts
+
+**Solution:** Redis caching + singleflight. Only 1 database query, 999 requests 
+get cached result instantly.
+
+### Problem: System Reliability
+**Scenario:** Email service is down → should transaction fail?
+
+**Solution:** Event-driven architecture. Transaction completes, then async 
+Kafka consumer handles email. If email fails, retry later. Transaction safe either way.
+
+### Problem: Maintainability at Scale
+**Scenario:** Switch database from MySQL to PostgreSQL → rewrite everything?
+
+**Solution:** Clean architecture. Repository layer abstracts database. 
+Only repository changes, service/handler untouched.
+
+---
+
+## 🚀 Use Cases
+
+Catalyst is designed for:
+
+- **E-commerce platforms** needing reliable order processing
+- **Fintech applications** requiring atomic transactions
+- **Marketplace systems** with inventory management
+- **Subscription services** with event-based workflows
+
+Learn how Catalyst handles these with pattern that scale to millions of users.
 
 ---
 

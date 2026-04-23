@@ -7,9 +7,9 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/assidik12/go-restfull-api/internal/delivery/http/dto"
-	"github.com/assidik12/go-restfull-api/internal/domain"
-	"github.com/assidik12/go-restfull-api/internal/event"
+	"github.com/assidik12/catalyst/internal/delivery/http/dto"
+	"github.com/assidik12/catalyst/internal/domain"
+	"github.com/assidik12/catalyst/internal/event"
 	"github.com/go-playground/validator/v10"
 	"github.com/google/uuid"
 )

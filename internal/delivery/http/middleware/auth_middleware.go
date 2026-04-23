@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/assidik12/go-restfull-api/internal/pkg/jwt"
+	"github.com/assidik12/catalyst/internal/pkg/jwt"
 	"github.com/julienschmidt/httprouter"
 )
 

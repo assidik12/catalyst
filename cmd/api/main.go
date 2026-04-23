@@ -10,9 +10,9 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/assidik12/go-restfull-api/cmd/injector"
-	"github.com/assidik12/go-restfull-api/config"
-	"github.com/assidik12/go-restfull-api/internal/pkg/logger"
+	"github.com/assidik12/catalyst/cmd/injector"
+	"github.com/assidik12/catalyst/config"
+	"github.com/assidik12/catalyst/internal/pkg/logger"
 	_ "github.com/go-sql-driver/mysql"
 )
 

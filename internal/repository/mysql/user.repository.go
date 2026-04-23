@@ -4,7 +4,7 @@ import (
 	"context"
 	"database/sql"
 
-	"github.com/assidik12/go-restfull-api/internal/domain"
+	"github.com/assidik12/catalyst/internal/domain"
 )
 
 // userRepository is the MySQL implementation of domain.UserRepository.
