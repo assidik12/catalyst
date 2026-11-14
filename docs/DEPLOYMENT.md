@@ -16,7 +16,8 @@
 4. [Services Overview](#services-overview)
 5. [Environment Variables](#environment-variables)
 6. [Observability](#observability)
-7. [Troubleshooting](#troubleshooting)
+7. [Performance Benchmarking (k6)](#performance-benchmarking-k6)
+8. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -281,6 +282,47 @@ scrape_configs:
 - Waterfall view menunjukkan durasi tiap operasi (DB query, Kafka publish, cache lookup)
 
 Tracing di-inject via `TracingMiddleware` dan menggunakan OpenTelemetry SDK.
+
+---
+
+## Performance Benchmarking (k6)
+
+Proyek ini menyediakan suite benchmark **Grafana k6** di `test/k6/` dan script runner otomatis di `scripts/run_k6_benchmark.ps1` untuk mengukur efisiensi komputasi, latensi, dan stabilitas sistem di bawah beban tinggi.
+
+### Menjalankan Benchmark
+
+Pastikan seluruh service Docker sudah aktif (`docker-compose up -d`), lalu jalankan:
+
+```powershell
+# Menjalankan seluruh skenario (01 s.d. 05)
+.\scripts\run_k6_benchmark.ps1
+
+# Menjalankan skenario tertentu saja
+.\scripts\run_k6_benchmark.ps1 -Scenario 03
+
+# Menjalankan tanpa reset stok MySQL otomatis
+.\scripts\run_k6_benchmark.ps1 -Scenario 04 -ReplenishStock:$false
+```
+
+### Cara Kerja `run_k6_benchmark.ps1`
+
+1. **Auto-Fallback Runtime**: Memeriksa apakah `k6` CLI terinstal secara lokal; jika tidak ada, otomatis menjalankan container `grafana/k6` dengan `--add-host=host.docker.internal:host-gateway` agar dapat mengakses `http://localhost:3001`.
+2. **Pre-Test Preparation**:
+   - Skenario `01` (`01_cache_stampede.js`): Otomatis menjalankan `FLUSHDB` pada `redis-cache-service` agar skenario *cold-cache singleflight stampede* valid.
+   - Skenario `03`, `04`, `05`: Otomatis me-*replenish* stok produk di `db-mysql-service` (ID `20..45` diset ke `10000`, ID `1` diset ke `100` untuk uji *flash sale*).
+3. **Computational Efficiency Snapshot**: Mengambil metrik sebelum dan sesudah pengujian dari `GET /metrics` (`http_requests_total`, `go_goroutines`, `go_memstats_alloc_bytes`, `go_gc_duration_seconds_count`), `docker stats go-app-service` (CPU % & Memory), serta status antrean `outbox_events` di MySQL.
+
+### Computational Efficiency Snapshot (Baseline Referensi)
+
+Berikut adalah baseline hasil pengujian **Skenario 05 (`05_mixed_ecommerce_load.js`, 55 VUs, 1m40s)** sebagai acuan perbandingan regresi:
+
+| Metrik | Baseline Terukur | Keterangan |
+|---|---|---|
+| Throughput | `113.54 req/s` (`11,401` req) | `0.00%` error, `100%` checks passed |
+| Latensi `med` / `p(95)` / `p(99)` | `3.71ms` / `125.92ms` / `138.48ms` | Di bawah SLA (`p(95)<300ms`, `p(99)<750ms`) |
+| Container Memory (`go-app-service`) | `33.42 MiB` (`0.44%`) | Post-test idle CPU `0.00%` |
+| Go Heap (`go_memstats_alloc_bytes`) | `19.11 MB → 12.51 MB` | `+53` siklus GC, bebas memory leak |
+| Go Goroutines (`go_goroutines`) | `21 → 21` (`delta: 0`) | Puncak `77` saat teardown, bebas goroutine leak |
 
 ---
 

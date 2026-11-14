@@ -78,7 +78,7 @@ services:
       KAFKA_LISTENERS: INTERNAL://0.0.0.0:9092,EXTERNAL://0.0.0.0:9093
       KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-      KAFKA_CREATE_TOPICS: "order_created:1:1" # Auto-create topic
+      KAFKA_CREATE_TOPICS: "order.created:1:1" # Auto-create topic
     volumes:
       - kafka-data:/kafka
     depends_on:

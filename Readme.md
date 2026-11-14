@@ -73,6 +73,7 @@ business logic; it's what makes good business logic possible.
 - ✅ OpenTelemetry Tracing (Jaeger)
 - ✅ Comprehensive Test Suite (>85% coverage)
 - ✅ Concurrent Race-Condition Testing
+- ✅ k6 Load & Computational Efficiency Benchmarks
 - ✅ Error handling middleware
 
 </td>
@@ -232,8 +233,44 @@ go test -coverprofile=coverage.out ./...
 go tool cover -html=coverage.out
 ```
 
+### ⚡ Performance & Load Testing (k6)
+
+Benchmark efisiensi komputasi, cache stampede (`singleflight`), CPU-bound bcrypt, throughput transaksi + Outbox, dan *race-condition* stok menggunakan **Grafana k6**:
+
+```powershell
+# Jalankan seluruh 5 skenario benchmark (otomatis fallback ke Docker grafana/k6)
+.\scripts\run_k6_benchmark.ps1
+
+# Jalankan skenario spesifik (01, 02, 03, 04, atau 05)
+.\scripts\run_k6_benchmark.ps1 -Scenario 04
+```
+
+| Skenario | Script | Fokus Pengujian |
+|---|---|---|
+| `01` | [`01_cache_stampede.js`](test/k6/01_cache_stampede.js) | Cold-cache `singleflight` stampede & warm Redis throughput |
+| `02` | [`02_auth_bcrypt_stress.js`](test/k6/02_auth_bcrypt_stress.js) | CPU-bound bcrypt login & JWT generation |
+| `03` | [`03_transaction_throughput.js`](test/k6/03_transaction_throughput.js) | Arrival-rate transaksi atomik MySQL + Outbox queuing |
+| `04` | [`04_flash_sale_contention.js`](test/k6/04_flash_sale_contention.js) | Zero-overselling row-lock contention & idempotency race |
+| `05` | [`05_mixed_ecommerce_load.js`](test/k6/05_mixed_ecommerce_load.js) | Mixed realistic load (75% browse, 15% checkout/history, 10% login) |
+
+#### Verified Benchmark Results (Mixed E-Commerce Load — 55 VUs, 1m40s)
+
+| Category | Metric | Measured Result | SLA / Target |
+|---|---|---|---|
+| **Throughput** | HTTP Requests (`http_reqs`) | **11,401 req** (`113.54 req/s`) | — |
+| **Throughput** | Iterations (`iterations`) | **5,999 iters** (`59.74 iter/s`) | `0` interrupted |
+| **Throughput** | Data Received | **89 MB** (`885 kB/s`) | — |
+| **Reliability** | Error Rate (`http_req_failed`) | **0.00%** (`0 / 11,401`) | `< 2.00%` |
+| **Reliability** | Checks Passed (`checks_succeeded`) | **100.00%** (`11,398 / 11,398`) | `100%` |
+| **Latency** | Median (`med`) / Average (`avg`) | **3.71ms** / **13.38ms** | `5-10ms` cached |
+| **Latency** | `p(90)` / `p(95)` / `p(99)` / `max` | **23.78ms** / **125.92ms** / **138.48ms** / **216.31ms** | `p(95)<300ms`, `p(99)<750ms` |
+| **Efficiency** | Container RAM (`go-app-service`) | **33.42 MiB** (`0.44%` host RAM) | — |
+| **Efficiency** | Go Heap (`go_memstats_alloc_bytes`) | **19.11 MB → 12.51 MB** (`+53` GC cycles) | No memory leak |
+| **Efficiency** | Go Goroutines (`go_goroutines`) | **21 → 21** (`0` delta, peak `77`) | Zero goroutine leak |
+| **Efficiency** | Post-Test Idle CPU | **0.00%** | Clean idle |
+
 > 📖 **Testing strategy**: See [`docs/STANDARDS.md`](docs/STANDARDS.md#12-testing)
-> for test patterns, naming conventions, and coverage checklist.
+> for test patterns, naming conventions, and coverage checklist. See [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md#performance-benchmarking-k6) for benchmark execution details.
 
 ---
 

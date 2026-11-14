@@ -449,7 +449,9 @@ test/
 ├── service/          # unit test service layer (pakai testify/mock)
 ├── repository/       # unit test repository layer (pakai go-sqlmock)
 ├── handler/          # unit test handler layer (pakai httptest)
-└── mocks/            # generated/manual mock untuk domain interface
+├── middleware/       # unit test middleware layer
+├── worker/           # unit test background worker (outbox relay)
+└── k6/               # performance & load testing scripts (Grafana k6)
 ```
 
 ### Aturan Wajib
@@ -485,6 +487,10 @@ go tool cover -html=coverage.out
 
 # Test spesifik
 go test -v -run TestProductService ./test/service/...
+
+# Performance & Load Testing (k6 via PowerShell runner)
+.\scripts\run_k6_benchmark.ps1
+.\scripts\run_k6_benchmark.ps1 -Scenario 01
 ```
 
 ---

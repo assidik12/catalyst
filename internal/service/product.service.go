@@ -55,6 +55,7 @@ func (p *productService) CreateProduct(ctx context.Context, req dto.ProductReque
 	productEntity := domain.Product{
 		Name:        req.Name,
 		Price:       req.Price,
+		Stock:       req.Stock,
 		Description: req.Description,
 		Img:         req.Img,
 		CategoryID:  req.CategoryID,
@@ -145,6 +146,7 @@ func (p *productService) UpdateProduct(ctx context.Context, id int, req dto.Prod
 		ID:          id,
 		Name:        req.Name,
 		Price:       req.Price,
+		Stock:       req.Stock,
 		Description: req.Description,
 		Img:         req.Img,
 		CategoryID:  req.CategoryID,

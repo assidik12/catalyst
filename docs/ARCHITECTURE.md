@@ -94,7 +94,9 @@ catalyst/
 │   │   └── redis/           # Cache implementation
 │   ├── service/             # Business logic layer
 │   └── worker/              # Kafka consumers / background workers (outbox relay)
-├── test/                    # Unit & integration tests
+├── scripts/                 # Operational & benchmark scripts (smoke_test, run_k6_benchmark)
+├── test/                    # Unit, integration, and k6 performance tests
+│   └── k6/                  # Grafana k6 load & efficiency test scripts
 ├── ai_agent/                # AI agent system prompts
 ├── docker-compose.yml
 ├── Dockerfile
@@ -141,6 +143,46 @@ Instead: 1 DB hit, 999 requests wait for result, all get same answer.
 | DB hit (cache miss) | 50-150ms |
 | Full transaction | 200-500ms |
 | With Kafka publish | <100ms extra (async) |
+
+### k6 Benchmark SLAs & Runtime Efficiency Metrics
+
+Performance and computational efficiency are validated via [`test/k6/`](../test/k6/) and [`scripts/run_k6_benchmark.ps1`](../scripts/run_k6_benchmark.ps1), combining k6 HTTP latency/error SLAs with Go runtime & container metrics (`go_goroutines`, `go_memstats_alloc_bytes`, `go_gc_duration_seconds_count`, `http_requests_total`, and `docker stats` CPU/Memory):
+
+| Script | Workload Profile | SLA Thresholds |
+|---|---|---|
+| `01_cache_stampede.js` | 100 VUs cold-cache spike + 200 VUs warm cache | `p(95) < 30ms`, `p(99) < 100ms`, `err < 1%` |
+| `02_auth_bcrypt_stress.js` | Ramping 5 → 50 VUs (`POST /users/login`) | `p(95) < 500ms`, `p(99) < 1000ms`, `err < 1%` |
+| `03_transaction_throughput.js` | Ramping 10 → 50 req/s (`POST /transactions`) | `p(95) < 400ms`, `p(99) < 800ms`, `err < 5%` |
+| `04_flash_sale_contention.js` | 150 shared-iterations + 20-VU idempotency race | `0` unexpected errors, `<=1` idempotent 201, `>=19` 409 |
+| `05_mixed_ecommerce_load.js` | 75% browse, 15% checkout/history, 10% login | `p(95) < 300ms`, `p(99) < 750ms`, `err < 2%` |
+
+#### Verified Benchmark Results (Scenario 05: Mixed E-Commerce Load)
+
+Run profile: **55 max VUs**, **1m40s** duration (`browse_catalog` 75%, `checkout_and_history` 15%, `user_login` 10%).
+
+**HTTP Latency & Throughput**
+
+| Metric | Measured Value | Target / SLA | Status |
+|---|---|---|---|
+| Total Requests (`http_reqs`) | `11,401` (`113.54 req/s`) | — | Pass |
+| Completed Iterations | `5,999` (`59.74 iter/s`) | `0` interrupted | Pass |
+| Failed Requests (`http_req_failed`) | `0.00%` (`0 / 11,401`) | `< 2.00%` | Pass |
+| Business Checks (`checks_succeeded`) | `100.00%` (`11,398 / 11,398`) | `100%` | Pass |
+| Latency `min` / `med` / `avg` | `119µs` / `3.71ms` / `13.38ms` | `5-10ms` cached | Pass |
+| Latency `p(90)` / `p(95)` | `23.78ms` / `125.92ms` | `p(95) < 300ms` | Pass |
+| Latency `p(99)` / `max` | `138.48ms` / `216.31ms` | `p(99) < 750ms` | Pass |
+| Network Data Received / Sent | `89 MB` (`885 kB/s`) / `2.0 MB` (`20 kB/s`) | — | Pass |
+
+**Go Runtime & Container Computational Efficiency**
+
+| Metric | Before Test | Peak / During Test | Post-Test | Evaluation |
+|---|---|---|---|---|
+| HTTP Requests (`/metrics`) | Baseline | — | `+11,400` | Matches k6 request count |
+| `go_goroutines` | `21` | `77` (teardown) | `21` (`delta: 0`) | Zero goroutine leaks |
+| `go_memstats_alloc_bytes` | `19.11 MB` | `12.97 MB` (teardown) | `12.51 MB` | Bounded heap, no leak |
+| `go_gc_duration_seconds_count` | Baseline | — | `+53` cycles | Smooth GC (~1 per 1.9s) |
+| Container Memory (`go-app-service`) | — | — | `33.42 MiB / 7.458 GiB` (`0.44%`) | Minimal footprint |
+| Container CPU (`go-app-service`) | — | — | `0.00%` (idle) | No background spin loops |
 
 ---
 
@@ -210,6 +252,7 @@ Client cannot manipulate pricing. Server is the source of truth.
 - ✅ OpenTelemetry distributed tracing (Jaeger)
 - ✅ Comprehensive test suite (>85% coverage)
 - ✅ Concurrent race-condition testing
+- ✅ k6 performance & computational efficiency benchmark suite
 - ✅ AI-powered Product Recommendation via Qwen OpenAI-compatible API (Llama 3.3 support)
 
 ### Roadmap

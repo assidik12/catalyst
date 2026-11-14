@@ -3,3 +3,4 @@ simple/
 nginx/
 script.sh
 vendor/
+*.exe
